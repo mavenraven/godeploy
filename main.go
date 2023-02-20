@@ -6,9 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sfreiberg/simplessh"
 	"os"
@@ -95,12 +97,27 @@ func main() {
 	}
 	fmt.Println("tarball created")
 
-	fmt.Println("uploading tarball...")
-	remoteTempFileName, err := client.Exec("mktemp")
-	assertNoErr(err, "could not create remote temp file name")
+	remoteTempFileNameBytes, err := client.Exec("mktemp")
+	remoteTempFileName := strings.TrimSpace(string(remoteTempFileNameBytes))
 
-	err = client.Upload(tarballName, string(remoteTempFileName))
-	assertNoErr(err, "could not upload tarball")
+	assertNoErr(err, "could not create remote temp file name")
+	fmt.Printf("uploading tarball to %v at %v...\n", remoteTempFileName, time.Now().String())
+
+	//client.Upload is unusably slow, just shell out instead
+
+	args := make([]string, 0)
+	if *privateKeyPath != "" {
+		args = append(args, "-i", *privateKeyPath)
+	}
+	args = append(args, tarballName, fmt.Sprintf("%v@%v:%v", *user, *host, remoteTempFileName))
+
+	scpCmd := exec.Command("scp", args...)
+	output, err := scpCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %v\n", string(output), err)
+		os.Exit(1)
+	}
+	fmt.Printf("tarball uploaded at %v\n", time.Now().String())
 
 	return
 }
