@@ -118,11 +118,11 @@ func createTarball() string {
 	for _, filePath := range flag.Args() {
 		func() {
 			fileToAdd, err := os.Open(filePath)
-			assertNoErr(err, "could not open file to add to tarball: %v", filePath)
+			assertNoErrF(err, "could not open file to add to tarball: %v\n", filePath)
 			defer fileToAdd.Close()
 
 			stat, err := fileToAdd.Stat()
-			assertNoErr(err, "could not get stat of file to add to tarball: %v", filePath)
+			assertNoErrF(err, "could not get stat of file to add to tarball: %v\n", filePath)
 
 			header := &tar.Header{
 				Name:    filePath,
@@ -132,10 +132,10 @@ func createTarball() string {
 			}
 
 			err = tarWriter.WriteHeader(header)
-			assertNoErr(err, "could not write header for tarball: %v", filePath)
+			assertNoErrF(err, "could not write header for tarball: %v\n", filePath)
 
 			_, err = io.Copy(tarWriter, fileToAdd)
-			assertNoErr(err, "could not copy file to tarball: %v", filePath)
+			assertNoErrF(err, "could not copy file to tarball: %v\n", filePath)
 		}()
 	}
 
@@ -161,28 +161,17 @@ func sshCommand(client *simplessh.Client, command string) {
 	}
 
 }
-
-func assertNoErr(err error, message ...string) {
+func assertNoErr(err error, message string) {
 	if err != nil {
-		if len(message) == 0 {
-			fmt.Printf("error: %v\n", err)
-			os.Exit(1)
-		}
+		fmt.Println(message[0])
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+}
 
-		if len(message) == 1 {
-			fmt.Println(message[0])
-			fmt.Printf("error: %v\n", err)
-			os.Exit(1)
-		}
-
-		rest := make([]interface{}, 0, len(message))
-		for _, m := range message {
-			rest = append(rest, m)
-		}
-
-		rest = append(rest, "\n")
-
-		fmt.Printf(message[0], rest...)
+func assertNoErrF(err error, message string, args string) {
+	if err != nil {
+		fmt.Printf(message, args)
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
