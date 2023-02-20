@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -46,48 +45,57 @@ func main() {
 	var err error
 
 	fmt.Println("attempting to connect as root...")
-
 	client, err = simplessh.ConnectWithKeyFile(socket, "root", *privateKeyPath)
-	if err != nil {
-		fmt.Println("unable to establish a connection")
-		os.Exit(1)
-	}
+	assertNoErr(err, "unable to establish a connection")
 	defer client.Close()
-
 	fmt.Println("connection to remote host established!")
+
 	fmt.Println("clearing existing firewall rules...")
-
-	_, err = client.Exec("iptables -F")
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-
+	//ran into this: https://askubuntu.com/a/1293947
+	sshCommand(client, "sudo iptables -P INPUT ACCEPT")
+	sshCommand(client, "sudo iptables -P OUTPUT ACCEPT")
+	sshCommand(client, "sudo iptables -F")
 	fmt.Println("all existing firewall rules removed")
+
 	fmt.Println("adding rule to allow ssh...")
-
-	_, err = client.Exec("iptables -A INPUT -p tcp --dport ssh -j ACCEPT")
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-
+	sshCommand(client, "sudo iptables -A INPUT -p tcp --dport ssh -j ACCEPT")
 	fmt.Println("rule to allow ssh added")
 
 	for _, port := range tcpPortsToOpen {
 		fmt.Printf("adding rule to open tcp port %v\n", port)
 
-		cmd := fmt.Sprintf("iptables -A INPUT -p tcp --dport %v -j ACCEPT", port)
-
-		if _, err := client.Exec(cmd); err != nil {
-			log.Println(err)
-			os.Exit(1)
-		}
+		cmd := fmt.Sprintf("sudo iptables -A INPUT -p tcp --dport %v -j ACCEPT", port)
+		sshCommand(client, cmd)
 
 		fmt.Printf("rule to open tcp port %v added\n", port)
 	}
 
+	fmt.Println("adding rule to deny all other incoming tcp traffic...")
+
+	cmd := "sudo iptables -L | grep 'ACCEPT' | grep 'ssh' > /dev/null && sudo iptables -P INPUT DROP"
+	sshCommand(client, cmd)
+
+	fmt.Println("rule to deny all other traffic ended")
+
 	return
+}
+
+func sshCommand(client *simplessh.Client, command string) {
+	output, err := client.Exec(command)
+	if err != nil {
+		fmt.Printf("output of failed command: %v", string(output))
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+
+}
+
+func assertNoErr(err error, message string) {
+	if err != nil {
+		fmt.Println(message)
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func getPorts(portStr string) []int {
@@ -98,7 +106,6 @@ func getPorts(portStr string) []int {
 	openPortsStrs := strings.Split(portStr, ",")
 	tcpPortsToOpen := make([]int, len(openPortsStrs))
 	for i, pStr := range openPortsStrs {
-		fmt.Printf("%v\n", openPortsStrs[0])
 		pInt, err := strconv.Atoi(pStr)
 		if err != nil {
 			fmt.Printf("could not convert port to integer: %v\n", pStr)
