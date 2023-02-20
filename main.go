@@ -23,8 +23,7 @@ func main() {
 	home := os.Getenv("HOME")
 
 	privateKeyPath := flag.String("private-key-path", "", "location of private key used to login, $HOME/.ssh/id_rsa will be used if not set")
-	tcpOpenPortList := flag.String("tcp-server-open-ports", "", "tcp ports to open on the remote machine, comma seperated")
-	_ = flag.String("server-listen", "", "tcp ports to open on the remote machine, comma seperated")
+	tcpOpenPortList := flag.String("server-listen", "", "tcp ports to open on the remote machine, comma seperated")
 	user := flag.String("user", "root", "name of user to use on remote machine")
 
 	flag.Parse()
@@ -85,9 +84,27 @@ func main() {
 
 	fmt.Println("rule to deny all other traffic added")
 
-	fmt.Println("installing podman...")
-	sshCommand(client, "apt install podman -y")
-	fmt.Println("podman installed")
+	fmt.Println("updating apt...")
+	sshCommand(client, "apt-get update")
+	fmt.Println("apt updated")
+
+	installPackage(client, "podman")
+	installPackage(client, "curl")
+
+	fmt.Println("downloading pack-cli tarball...")
+	sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux-arm64.tgz")
+
+	out, err := client.Exec(fmt.Sprintf("sha256sum %v", "pack-v0.28.0-linux-arm64.tgz"))
+	assertNoErr(err, "could not get hash of pack-cli tarball")
+
+	if string(out) != "f4940962d1d65b3abcb1996e98cae6497f525999991e9d9dbc7d78a4029d5bb6" {
+		fmt.Println("pack-cli tarball corrupt, or someone is doing something sneaky...")
+		os.Exit(1)
+	}
+
+	fmt.Println("pack-cli tarball downloaded")
+
+	fmt.Println("unpacking pack-cli tarball...")
 
 	fmt.Println("creating tarball...")
 	tarballName := createTarball()
@@ -198,6 +215,13 @@ func assertNoErrF(err error, message string, args string) {
 		fmt.Printf(": %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func installPackage(client *simplessh.Client, packageName string) {
+	fmt.Printf("installing %v...\n", packageName)
+	sshCommand(client, fmt.Sprintf("apt-get install %v -y", packageName))
+	fmt.Printf("%v installed\n", packageName)
+
 }
 
 func getPorts(portStr string) []int {
