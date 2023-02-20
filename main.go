@@ -95,6 +95,13 @@ func main() {
 	}
 	fmt.Println("tarball created")
 
+	fmt.Println("uploading tarball...")
+	remoteTempFileName, err := client.Exec("mktemp")
+	assertNoErr(err, "could not create remote temp file name")
+
+	err = client.Upload(tarballName, string(remoteTempFileName))
+	assertNoErr(err, "could not upload tarball")
+
 	return
 }
 
@@ -118,11 +125,11 @@ func createTarball() string {
 	for _, filePath := range flag.Args() {
 		func() {
 			fileToAdd, err := os.Open(filePath)
-			assertNoErrF(err, "could not open file to add to tarball: %v\n", filePath)
+			assertNoErrF(err, "could not open file to add to tarball %v", filePath)
 			defer fileToAdd.Close()
 
 			stat, err := fileToAdd.Stat()
-			assertNoErrF(err, "could not get stat of file to add to tarball: %v\n", filePath)
+			assertNoErrF(err, "could not get stat of file to add to tarball %v", filePath)
 
 			header := &tar.Header{
 				Name:    filePath,
@@ -132,10 +139,10 @@ func createTarball() string {
 			}
 
 			err = tarWriter.WriteHeader(header)
-			assertNoErrF(err, "could not write header for tarball: %v\n", filePath)
+			assertNoErrF(err, "could not write header for tarball: %v", filePath)
 
 			_, err = io.Copy(tarWriter, fileToAdd)
-			assertNoErrF(err, "could not copy file to tarball: %v\n", filePath)
+			assertNoErrF(err, "could not copy file to tarball: %v", filePath)
 		}()
 	}
 
@@ -163,8 +170,8 @@ func sshCommand(client *simplessh.Client, command string) {
 }
 func assertNoErr(err error, message string) {
 	if err != nil {
-		fmt.Println(message[0])
-		fmt.Printf("error: %v\n", err)
+		fmt.Printf("%v", message)
+		fmt.Printf(": %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -172,7 +179,7 @@ func assertNoErr(err error, message string) {
 func assertNoErrF(err error, message string, args string) {
 	if err != nil {
 		fmt.Printf(message, args)
-		fmt.Printf("error: %v\n", err)
+		fmt.Printf(": %v\n", err)
 		os.Exit(1)
 	}
 }
