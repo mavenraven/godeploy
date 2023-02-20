@@ -38,22 +38,7 @@ func main() {
 		privateKeyPath = &defaultKeyLocation
 	}
 
-	openPortsStrs := strings.Split(*tcpOpenPortList, ",")
-	tcpPortsToOpen := make([]int, len(openPortsStrs))
-	for i, pStr := range openPortsStrs {
-		pInt, err := strconv.Atoi(pStr)
-		if err != nil {
-			fmt.Printf("could not convert port to integer: %v\n", pStr)
-			os.Exit(1)
-		}
-
-		if pInt < 0 || pInt > 65535 {
-			fmt.Printf("port must be between 0 and 65535, inclusive: %v\n", pInt)
-			os.Exit(1)
-		}
-
-		tcpPortsToOpen[i] = pInt
-	}
+	tcpPortsToOpen := getPorts(*tcpOpenPortList)
 
 	socket := fmt.Sprintf("%v:%v", *host, *port)
 
@@ -103,4 +88,29 @@ func main() {
 	}
 
 	return
+}
+
+func getPorts(portStr string) []int {
+	if portStr == "" {
+		return []int{}
+	}
+
+	openPortsStrs := strings.Split(portStr, ",")
+	tcpPortsToOpen := make([]int, len(openPortsStrs))
+	for i, pStr := range openPortsStrs {
+		fmt.Printf("%v\n", openPortsStrs[0])
+		pInt, err := strconv.Atoi(pStr)
+		if err != nil {
+			fmt.Printf("could not convert port to integer: %v\n", pStr)
+			os.Exit(1)
+		}
+
+		if pInt < 0 || pInt > 65535 {
+			fmt.Printf("port must be between 0 and 65535, inclusive: %v\n", pInt)
+			os.Exit(1)
+		}
+
+		tcpPortsToOpen[i] = pInt
+	}
+	return tcpPortsToOpen
 }
