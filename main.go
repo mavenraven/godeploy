@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/sfreiberg/simplessh"
 	"os"
 )
@@ -50,11 +51,14 @@ func main() {
 	var client *simplessh.Client
 	var err error
 
-	fmt.Println("attempting to connect as root...")
-	client, err = simplessh.ConnectWithKeyFile(socket, *user, *privateKeyPath)
-	assertNoErr(err, "unable to establish a connection")
-	defer client.Close()
-	fmt.Println("connection to remote host established!")
+	var counter *int
+	*counter = 0
+
+	step(counter, fmt.Sprintf("connecting as %v", *user), func() {
+		client, err = simplessh.ConnectWithKeyFile(socket, *user, *privateKeyPath)
+		assertNoErr(err, "unable to establish a connection")
+		defer client.Close()
+	})
 
 	fmt.Println("clearing existing firewall rules...")
 	//ran into this: https://askubuntu.com/a/1293947
@@ -88,7 +92,7 @@ func main() {
 	sshCommand(client, "apt-get update")
 	fmt.Println("apt updated")
 
-	installPackage(client, "podman")
+	installPackage(client, "docker")
 	installPackage(client, "curl")
 
 	fmt.Println("downloading pack-cli tarball...")
@@ -200,6 +204,12 @@ func sshCommand(client *simplessh.Client, command string) {
 		os.Exit(1)
 	}
 
+}
+
+func step(counter *int, name string, action func()) {
+	color.Green("%v. %v\n", *counter, name)
+	action()
+	*counter++
 }
 func assertNoErr(err error, message string) {
 	if err != nil {
