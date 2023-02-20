@@ -101,10 +101,9 @@ func main() {
 	remoteTempFileName := strings.TrimSpace(string(remoteTempFileNameBytes))
 
 	assertNoErr(err, "could not create remote temp file name")
-	fmt.Printf("uploading tarball to %v at %v...\n", remoteTempFileName, time.Now().String())
+	fmt.Printf("uploading tarball to %v at %v...\n", remoteTempFileName, time.Now().Format("15:04:05"))
 
 	//client.Upload is unusably slow, just shell out instead
-
 	args := make([]string, 0)
 	if *privateKeyPath != "" {
 		args = append(args, "-i", *privateKeyPath)
@@ -117,7 +116,7 @@ func main() {
 		fmt.Printf("%v: %v\n", string(output), err)
 		os.Exit(1)
 	}
-	fmt.Printf("tarball uploaded at %v\n", time.Now().String())
+	fmt.Printf("tarball uploaded at %v\n", time.Now().Format("15:04:05"))
 
 	return
 }
