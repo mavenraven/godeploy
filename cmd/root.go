@@ -28,7 +28,8 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().IntP("port", "", 22, "port number of your server")
-	rootCmd.PersistentFlags().StringP("host", "", "", "host name or IP address of your server")
+	flags.root.port = rootCmd.PersistentFlags().IntP("port", "", 22, "port number of your server")
+	flags.root.host = rootCmd.PersistentFlags().StringP("host", "", "", "host name or IP address of your server")
+	flags.root.key = rootCmd.PersistentFlags().StringP("key", "", "", "location of id_rsa. Defaults to $HOME/.ssh/id_rsa")
 	rootCmd.MarkPersistentFlagRequired("host")
 }
