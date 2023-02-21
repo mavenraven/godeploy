@@ -15,17 +15,38 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/sfreiberg/simplessh"
+	"github.com/spf13/cobra"
 	"os"
 )
 
 func main() {
-	port := flag.Int("ssh-port", 22, "port number that sshd is listening on")
+	port := flag.Int("port", 22, "the port number on the remote host sshd is listening on")
 	host := flag.String("host", "", "name of host / ip address that sshd is listening on")
-
 	home := os.Getenv("HOME")
-
 	privateKeyPath := flag.String("private-key-path", "", "location of private key used to login, $HOME/.ssh/id_rsa will be used if not set")
-	flag.Parse()
+
+	provisionCmd := flag.NewFlagSet("provision", flag.ExitOnError)
+	provisionTcpPorts := provisionCmd.String("tcp-ports", "", "a comma seperated list of tcp ports to open other than 22, 80 and 443")
+
+	_ = provisionTcpPorts
+
+	cobra.
+		flag.Parse()
+
+	if len(os.Args) < 2 {
+		fmt.Println("Expected `provision` or `deploy` subcommands.")
+		os.Exit(1)
+	}
+
+	switch os.Args[1] {
+	case "provision":
+		return
+	case "deploy":
+		return
+	default:
+		fmt.Println("Expected `provision` or `deploy` subcommands.")
+		os.Exit(1)
+	}
 
 	if *host == "" {
 		fmt.Println("-host is required.")
