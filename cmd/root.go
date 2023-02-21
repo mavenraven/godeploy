@@ -8,11 +8,9 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "snakeplant",
-	Short: "snakeplant provides a way to easily deploy to a single machine",
+	Short: "'snakeplant' deploys to and maintains your server",
 	Long: `snakeplant 
-examples and usage of using your application. For example:
-
-Much like a real snake plant, the idea is that 'snakeplant' will make your
+Much like a real snake plant, the idea is that 'snakeplant' will make caring for your
 server a low maintenance and enjoyable experience. And also like a real
 snake plant, you will likely have to OCCASIONALLY actually ssh into your server
 and do tasks. 
@@ -23,13 +21,14 @@ The goal is to provide you with the education that you need to fix stuff when it
 
 func Execute() {
 	err := rootCmd.Execute()
-	rootCmd.Usage()
 	if err != nil {
+		rootCmd.Usage()
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.Flags().IntP("port", "", 22, "port number of your server")
-	rootCmd.Flags().StringP("host", "", "", "host name or IP address of your server")
+	rootCmd.PersistentFlags().IntP("port", "", 22, "port number of your server")
+	rootCmd.PersistentFlags().StringP("host", "", "", "host name or IP address of your server")
+	rootCmd.MarkPersistentFlagRequired("host")
 }
