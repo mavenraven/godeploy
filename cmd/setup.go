@@ -27,11 +27,14 @@ func setup(cmd *cobra.Command, args []string) {
 	var client *simplessh.Client
 	var err error
 
-	step(&counter, "connecting as root...", func() {
+	step(&counter, "connecting as root", func() {
 		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "root", *flags.root.key, 5*time.Second)
 		assertNoErr(err, "unable to establish a connection")
-		defer client.Close()
-		fmt.Printf("hi\n")
+	})
+	defer client.Close()
+
+	step(&counter, "updating apt", func() {
+		sshCommand(client, "apt-get update")
 	})
 
 }
