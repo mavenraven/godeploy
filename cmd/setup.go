@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/sfreiberg/simplessh"
 	"github.com/spf13/cobra"
+	"os"
 	"time"
 )
 
@@ -33,6 +35,14 @@ func setup(cmd *cobra.Command, args []string) {
 	})
 	defer client.Close()
 
+	step(&counter, "checking version of server", func() {
+		_, err := client.Exec("uname -a | grep 'Linux Ubuntu-2204-jammy-amd64-base'")
+		if err != nil {
+			color.Red("snakeplant is only supported for https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/")
+			os.Exit(1)
+		}
+	})
+
 	step(&counter, "updating apt", func() {
 		sshCommand(client, "apt-get update")
 	})
@@ -43,6 +53,12 @@ func setup(cmd *cobra.Command, args []string) {
 
 	installPackage(&counter, client, "docker")
 	installPackage(&counter, client, "curl")
+
+	step(&counter, "persisting firewall rules", func() {
+		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
+		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections")
+		sshCommand(client, "apt-get install iptables-persistent -y")
+	})
 
 }
 
