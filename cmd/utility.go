@@ -56,3 +56,9 @@ func sshCommand(client *simplessh.Client, command string) {
 		os.Exit(1)
 	}
 }
+
+func installPackage(counter *int, client *simplessh.Client, packageName string) {
+	step(counter, fmt.Sprintf("installing %v", packageName), func() {
+		sshCommand(client, fmt.Sprintf("apt-get install %v -y", packageName))
+	})
+}
