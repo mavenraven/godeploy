@@ -21,6 +21,8 @@ var setupCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(setupCmd)
 	flags.setup.tcpPorts = setupCmd.Flags().Int32SliceP("tcpPorts", "", []int32{}, "A comma seperated list of extra tcp ports to open in your server's firewall")
+	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "Time to reboot your server for security updates that require a reboot. An example value is 02:00 for 2 AM. Remember that your server might be in a different timezone than you!")
+	setupCmd.MarkFlagRequired("rebootTime")
 }
 
 func setup(cmd *cobra.Command, args []string) {
@@ -73,16 +75,43 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "apt-get install iptables-persistent -y")
 	})
 
+	installPackage(&counter, client, "unattended-upgrades")
+
+	step(&counter, "setting up automatic reboots", func() {
+		out, err := client.Exec("mktemp")
+		if err != nil {
+			color.Red("could not create temp file")
+			os.Exit(1)
+
+		}
+
+		tempFile := strings.TrimSpace(string(out))
+
+		fmt.Println(tempFile)
+
+		sshCommand(client, fmt.Sprintf("cp /etc/apt/apt.conf.d/50unattended-upgrades %v", tempFile))
+		sshCommand(client, fmt.Sprintf("[ -f /etc/apt/apt.conf.d/50unattended-upgrades.bak ] || cp /etc/apt/apt.conf.d/50unattended-upgrades /etc/apt/apt.conf.d/50unattended-upgrades.bak"))
+
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot \"false\".*|Unattended-Upgrade::Automatic-Reboot \"true\";|'  %v", tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\".*|Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\";|'  %v", tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-Time \"02:00\".*|Unattended-Upgrade::Automatic-Reboot-Time \"%v\";|'  %v", *flags.setup.rebootTime, tempFile))
+
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::SyslogEnable \"false\".*|Unattended-Upgrade::SyslogEnable \"true\";|' %v", tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Verbose \"false\".*|Unattended-Upgrade::Verbose \"true\";|' %v", tempFile))
+
+		sshCommand(client, fmt.Sprintf("mv %v /etc/apt/apt.conf.d/50unattended-upgrades", tempFile))
+		sshCommand(client, fmt.Sprintf("echo 'automatic upgrade changes: '; diff /etc/apt/apt.conf.d/50unattended-upgrades.bak /etc/apt/apt.conf.d/50unattended-upgrades || true"))
+	})
+
 	step(&counter, "installing pack", func() {
-		fileName := "pack-v0.28.0-linux-arm64.tgz"
+		fileName := "pack-v0.28.0-linux.tgz"
+		sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
 
-		sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux-arm64.tgz")
-
-		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", "pack-v0.28.0-linux-arm64.tgz"))
+		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
 		assertNoErr(err, "could not get hash of pack-cli tarball")
 		fmt.Printf(string(out))
 
-		if strings.TrimSpace(string(out)) != "f4940962d1d65b3abcb1996e98cae6497f525999991e9d9dbc7d78a4029d5bb6" {
+		if strings.TrimSpace(string(out)) != "4f51b82dea355cffc62b7588a2dfa461e26621dda3821034830702e5cae6f587" {
 			fmt.Println("pack-cli tarball corrupt, or someone is doing something sneaky...")
 			os.Exit(1)
 		}
@@ -92,6 +121,7 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})
 
+	color.Green("Setup is complete. You're now ready to deploy!")
 }
 
 var firewallRulesCommand = `iptables-restore <<-'EOF'

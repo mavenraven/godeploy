@@ -14,7 +14,8 @@ var flags = struct {
 		key  *string
 	}
 	setup struct {
-		tcpPorts *[]int32
+		tcpPorts   *[]int32
+		rebootTime *string
 	}
 }{}
 
