@@ -24,7 +24,6 @@ func main() {
 	home := os.Getenv("HOME")
 
 	privateKeyPath := flag.String("private-key-path", "", "location of private key used to login, $HOME/.ssh/id_rsa will be used if not set")
-	tcpOpenPortList := flag.String("server-listen", "", "tcp ports to open on the remote machine, comma seperated")
 	user := flag.String("user", "root", "name of user to use on remote machine")
 
 	flag.Parse()
@@ -44,49 +43,31 @@ func main() {
 		privateKeyPath = &defaultKeyLocation
 	}
 
-	tcpPortsToOpen := getPorts(*tcpOpenPortList)
-
 	socket := fmt.Sprintf("%v:%v", *host, *port)
 
 	var client *simplessh.Client
 	var err error
 
-	var counter *int
-	*counter = 0
+	counter := 0
 
-	step(counter, fmt.Sprintf("connecting as %v", *user), func() {
+	step(&counter, fmt.Sprintf("connecting as %v", *user), func() {
 		client, err = simplessh.ConnectWithKeyFile(socket, *user, *privateKeyPath)
 		assertNoErr(err, "unable to establish a connection")
-		defer client.Close()
 	})
 
-	fmt.Println("clearing existing firewall rules...")
-	//ran into this: https://askubuntu.com/a/1293947
-	sshCommand(client, "iptables -P INPUT ACCEPT")
-	sshCommand(client, "iptables -P OUTPUT ACCEPT")
-	sshCommand(client, "iptables -F")
-	fmt.Println("all existing firewall rules removed")
+	defer client.Close()
+	fmt.Println("loading firewall rules..")
+	sshCommand(client, `iptables-restore <<-'EOF'
+*filter
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 80,443 -j ACCEPT
+-A INPUT -p tcp --dport ssh -j ACCEPT
+-A INPUT -j REJECT
+COMMIT
+EOF
+`)
 
-	fmt.Println("adding rule to allow ssh...")
-	sshCommand(client, "iptables -A INPUT -p tcp --dport ssh -j ACCEPT")
-	fmt.Println("rule to allow ssh added")
-
-	for _, port := range tcpPortsToOpen {
-		fmt.Printf("adding rule to open tcp port %v\n", port)
-
-		cmd := fmt.Sprintf("iptables -A INPUT -p tcp --dport %v -j ACCEPT", port)
-		sshCommand(client, cmd)
-
-		fmt.Printf("rule to open tcp port %v added\n", port)
-	}
-
-	fmt.Println("adding rule to deny all other incoming tcp traffic...")
-
-	//a bit of extra safety to ensure the ssh rule is there
-	cmd := "iptables -L | grep 'ACCEPT' | grep 'ssh' > /dev/null && sudo iptables -P INPUT DROP"
-	sshCommand(client, cmd)
-
-	fmt.Println("rule to deny all other traffic added")
+	fmt.Println("firewall rules loaded")
 
 	fmt.Println("updating apt...")
 	sshCommand(client, "apt-get update")
