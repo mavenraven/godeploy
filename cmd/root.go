@@ -14,15 +14,16 @@ examples and usage of using your application. For example:
 
 Much like a real snake plant, the idea is that 'snakeplant' will make your
 server a low maintenance and enjoyable experience. And also like a real
-snake plant, you will likely have to OCASIONALLY actual ssh into your server
+snake plant, you will likely have to OCCASIONALLY actually ssh into your server
 and do tasks. 
 
 So, the goal isn't to completely hide sysadmin work from you. That never works.
-The goal is to provide you with the education that you need to fix stuf when it goes wrong.`,
+The goal is to provide you with the education that you need to fix stuff when it goes wrong.`,
 }
 
 func Execute() {
 	err := rootCmd.Execute()
+	rootCmd.Usage()
 	if err != nil {
 		os.Exit(1)
 	}
