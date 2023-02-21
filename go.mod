@@ -1,4 +1,4 @@
-module github.com/mavenraven/godeploy
+module github.com/mavenraven/snakeplant
 
 go 1.18
 

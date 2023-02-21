@@ -5,7 +5,7 @@
 *.so
 *.dylib
 .idea
-godeploy
+snakeplant
 
 # Test binary, built with `go test -c`
 *.test
