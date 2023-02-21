@@ -1,6 +1,10 @@
 package cmd
 
-import "github.com/fatih/color"
+import (
+	"fmt"
+	"github.com/fatih/color"
+	"os"
+)
 
 var flags = struct {
 	root struct {
@@ -13,8 +17,24 @@ var flags = struct {
 	}
 }{}
 
-func Step(counter *int, desc string, action func()) {
-	color.Green("%v. [%v]\n", *counter, desc)
+func step(counter *int, beginDesc string, action func()) {
+	color.Green("%v. %v\n", *counter, beginDesc)
 	action()
 	*counter++
+	color.Green("   success!\n")
+}
+func assertNoErr(err error, message string) {
+	if err != nil {
+		fmt.Printf("%v", message)
+		fmt.Printf(": %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func assertNoErrF(err error, message string, args string) {
+	if err != nil {
+		fmt.Printf(message, args)
+		fmt.Printf(": %v\n", err)
+		os.Exit(1)
+	}
 }
