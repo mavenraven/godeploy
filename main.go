@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -83,10 +84,9 @@ EOF
 	fmt.Println("downloading pack-cli tarball...")
 	sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux-arm64.tgz")
 
-	out, err := client.Exec(fmt.Sprintf("sha256sum %v", "pack-v0.28.0-linux-arm64.tgz"))
+	out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", "pack-v0.28.0-linux-arm64.tgz"))
 	assertNoErr(err, "could not get hash of pack-cli tarball")
-
-	if string(out) != "f4940962d1d65b3abcb1996e98cae6497f525999991e9d9dbc7d78a4029d5bb6" {
+	if strings.TrimSpace(string(out)) != "f4940962d1d65b3abcb1996e98cae6497f525999991e9d9dbc7d78a4029d5bb6" {
 		fmt.Println("pack-cli tarball corrupt, or someone is doing something sneaky...")
 		os.Exit(1)
 	}
@@ -128,10 +128,6 @@ EOF
 }
 
 func createTarball() string {
-	if len(flag.Args()) == 0 {
-		return ""
-	}
-
 	tarballFile, err := os.CreateTemp("", "")
 	assertNoErr(err, "unable to create tarball file")
 
@@ -144,29 +140,42 @@ func createTarball() string {
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
-	for _, filePath := range flag.Args() {
-		func() {
-			fileToAdd, err := os.Open(filePath)
-			assertNoErrF(err, "could not open file to add to tarball %v", filePath)
-			defer fileToAdd.Close()
+	wd, err := os.Getwd()
+	assertNoErr(err, "could not get current working directory to walk tarball tree")
 
-			stat, err := fileToAdd.Stat()
-			assertNoErrF(err, "could not get stat of file to add to tarball %v", filePath)
+	filepath.Walk(wd, func(path string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
 
-			header := &tar.Header{
-				Name:    filePath,
-				Size:    stat.Size(),
-				Mode:    int64(stat.Mode()),
-				ModTime: stat.ModTime(),
-			}
+		if strings.Contains(path, ".git") {
+			//TODO: we could use the gitignore to filter out other junk
+			return nil
+		}
 
-			err = tarWriter.WriteHeader(header)
-			assertNoErrF(err, "could not write header for tarball: %v", filePath)
+		assertNoErrF(err, "error while walking for tarball at %v", path)
 
-			_, err = io.Copy(tarWriter, fileToAdd)
-			assertNoErrF(err, "could not copy file to tarball: %v", filePath)
-		}()
-	}
+		fileToAdd, err := os.Open(path)
+		assertNoErrF(err, "could not open file to add to tarball %v", path)
+		defer fileToAdd.Close()
+
+		stat, err := fileToAdd.Stat()
+		assertNoErrF(err, "could not get stat of file to add to tarball %v", path)
+
+		header := &tar.Header{
+			Name:    path[len(wd)+1:],
+			Size:    stat.Size(),
+			Mode:    int64(stat.Mode()),
+			ModTime: stat.ModTime(),
+		}
+
+		err = tarWriter.WriteHeader(header)
+		assertNoErrF(err, "could not write header for tarball: %v", path)
+
+		_, err = io.Copy(tarWriter, fileToAdd)
+		assertNoErrF(err, "could not copy file to tarball: %v", path)
+		return nil
+	})
 
 	return tarballFile.Name()
 }
