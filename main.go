@@ -25,8 +25,6 @@ func main() {
 	home := os.Getenv("HOME")
 
 	privateKeyPath := flag.String("private-key-path", "", "location of private key used to login, $HOME/.ssh/id_rsa will be used if not set")
-	user := flag.String("user", "root", "name of user to use on remote machine")
-
 	flag.Parse()
 
 	if *host == "" {
@@ -51,8 +49,8 @@ func main() {
 
 	counter := 0
 
-	step(&counter, fmt.Sprintf("connecting as %v", *user), func() {
-		client, err = simplessh.ConnectWithKeyFile(socket, *user, *privateKeyPath)
+	step(&counter, fmt.Sprintf("connecting as %v", "root"), func() {
+		client, err = simplessh.ConnectWithKeyFile(socket, "root", *privateKeyPath)
 		assertNoErr(err, "unable to establish a connection")
 	})
 
@@ -80,6 +78,11 @@ EOF
 
 	installPackage(client, "docker")
 	installPackage(client, "curl")
+	fmt.Println("persisting firewall rules")
+	sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
+	sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections")
+	installPackage(client, "iptables-persistent")
+	fmt.Println("firewall rules persisted")
 
 	fmt.Println("downloading pack-cli tarball...")
 	sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux-arm64.tgz")
@@ -114,7 +117,7 @@ EOF
 	if *privateKeyPath != "" {
 		args = append(args, "-i", *privateKeyPath)
 	}
-	args = append(args, tarballName, fmt.Sprintf("%v@%v:%v", *user, *host, remoteTempFileName))
+	args = append(args, tarballName, fmt.Sprintf("%v@%v:%v", "root", *host, remoteTempFileName))
 
 	scpCmd := exec.Command("scp", args...)
 	output, err := scpCmd.CombinedOutput()
@@ -181,23 +184,16 @@ func createTarball() string {
 }
 
 func sshCommand(client *simplessh.Client, command string) {
-	sudoPassword := os.Getenv("GODEPLOY_SUDO")
-
 	var output []byte
 	var err error
 
-	if sudoPassword == "" {
-		output, err = client.Exec(command)
-	} else {
-		output, err = client.ExecSudo(sudoPassword, command)
-	}
+	output, err = client.Exec(command)
 
 	if err != nil {
 		fmt.Printf("output of failed command: %v", string(output))
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
-
 }
 
 func step(counter *int, name string, action func()) {
