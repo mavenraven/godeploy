@@ -117,23 +117,6 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "mv pack /usr/local/bin/pack")
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})
-	step(&counter, "changing apt source to only security updates", func() {
-		// We want this so that we never bring in backports that could cause issues to our system.
-		out, err := client.Exec("mktemp")
-		assertNoErr(err, "could not create temp file")
-
-		tempFile := strings.TrimSpace(string(out))
-
-		sourcesFilePath := "/etc/apt/sources.list"
-		safeIdempotentCopyFile(client, sourcesFilePath, fmt.Sprintf("%v.bak", sourcesFilePath))
-
-		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
-
-		sshCommand(client, fmt.Sprintf("sed -ni '/^deb.*security/p' %v", tempFile))
-
-		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, sourcesFilePath))
-		sshCommand(client, fmt.Sprintf("echo 'sources:'; cat %v", sourcesFilePath))
-	})
 
 	color.Green("Setup is complete. Your server is now ready to use!")
 }

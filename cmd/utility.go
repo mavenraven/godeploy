@@ -60,11 +60,20 @@ func sshCommand(client *simplessh.Client, command string) {
 
 func installPackage(counter *int, client *simplessh.Client, packageName string) {
 	step(counter, fmt.Sprintf("installing %v", packageName), func() {
+		// We don't want to run install on subsequent runs as that could cause the package to update and cause a broken system.
+		_, err := client.Exec(fmt.Sprintf("dpkg -l %v", packageName))
+		assertAnyErrWasDueToNonZeroExitCode(err, "dpkg listing was interrupted")
+
+		if err == nil {
+			fmt.Printf("%v package was installed previously\n", packageName)
+			return
+		}
+
 		sshCommand(client, fmt.Sprintf("apt-get install %v -y", packageName))
 	})
 }
 
-func assertErrWasDueToNonZeroExitCode(err error, message string) {
+func assertAnyErrWasDueToNonZeroExitCode(err error, message string) {
 	if exitErr, ok := err.(*ssh.ExitError); ok {
 		// I spent an hour looking into this because I wasn't sure if it was right. The following is correct (probably ¯\_(ツ)_/¯),
 		// but the API for `ExitError` is EXTREMELY esoteric.
@@ -83,18 +92,18 @@ func assertErrWasDueToNonZeroExitCode(err error, message string) {
 
 func safeIdempotentCopyFile(client *simplessh.Client, sourceFilePath, targetFilePath string) {
 	_, err := client.Exec(fmt.Sprintf("[ -f \"%v\" ] && [ -f \"%v.finished\" ]", targetFilePath, targetFilePath))
+	assertAnyErrWasDueToNonZeroExitCode(err, "interrupted while checking if target was already copied over successfully")
+
 	if err == nil {
 		// We don't want clobber the backup once it has been successfully taken, so do nothing.
 		fmt.Printf("%v was previously copied\n", sourceFilePath)
 		return
-	} else {
-		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking if target was already copied over successfully")
 	}
 
 	_, err = client.Exec(fmt.Sprintf("[ -f \"%v\" ] && ! [ -f \"%v.finished\" ]", targetFilePath, targetFilePath))
-	if err != nil {
-		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking for corrupted target file")
+	assertAnyErrWasDueToNonZeroExitCode(err, "interrupted while checking for corrupted target file")
 
+	if err != nil {
 		// The copy was interrupted before it finished the last time it was run. Remove everything and start over.
 		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v\" ]", targetFilePath))
 		assertNoErr(err, "unable to remove corrupt target file")
