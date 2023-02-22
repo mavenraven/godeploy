@@ -57,6 +57,24 @@ func setup(cmd *cobra.Command, args []string) {
 		}
 	})
 
+	step(&counter, "changing apt source to only security updates", func() {
+		// We want this so that we never bring in backports that could cause issues to our system.
+		out, err := client.Exec("mktemp")
+		assertNoErr(err, "could not create temp file")
+
+		tempFile := strings.TrimSpace(string(out))
+
+		sourcesFilePath := "/etc/apt/sources.list"
+		safeIdempotentCopyFile(client, sourcesFilePath, fmt.Sprintf("%v.bak", sourcesFilePath))
+
+		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
+
+		sshCommand(client, fmt.Sprintf("sed -ni '/^deb.*security/p' %v", tempFile))
+
+		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, sourcesFilePath))
+		sshCommand(client, fmt.Sprintf("echo 'sources:'; cat %v", sourcesFilePath))
+	})
+
 	step(&counter, "updating apt", func() {
 		sshCommand(client, "apt-get update")
 	})
@@ -80,17 +98,14 @@ func setup(cmd *cobra.Command, args []string) {
 
 	step(&counter, "setting up automatic reboots", func() {
 		out, err := client.Exec("mktemp")
-		if err != nil {
-			color.Red("could not create temp file")
-			os.Exit(1)
-
-		}
+		assertNoErr(err, "could not create temp file")
 
 		tempFile := strings.TrimSpace(string(out))
 
-		safeBackupFile(client, "/etc/apt/apt.conf.d/50unattended-upgrades")
+		unattendedUpgradesFilePath := "/etc/apt/apt.conf.d/50unattended-upgrades"
+		safeIdempotentCopyFile(client, unattendedUpgradesFilePath, fmt.Sprintf("%v.bak", unattendedUpgradesFilePath))
 
-		sshCommand(client, fmt.Sprintf("cp /etc/apt/apt.conf.d/50unattended-upgrades.bak %v", tempFile))
+		sshCommand(client, fmt.Sprintf("cp %v %v", unattendedUpgradesFilePath, tempFile))
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot \"false\".*|Unattended-Upgrade::Automatic-Reboot \"true\";|'  %v", tempFile))
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\".*|Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\";|'  %v", tempFile))
@@ -99,8 +114,8 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::SyslogEnable \"false\".*|Unattended-Upgrade::SyslogEnable \"true\";|' %v", tempFile))
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Verbose \"false\".*|Unattended-Upgrade::Verbose \"true\";|' %v", tempFile))
 
-		sshCommand(client, fmt.Sprintf("mv %v /etc/apt/apt.conf.d/50unattended-upgrades", tempFile))
-		sshCommand(client, fmt.Sprintf("echo 'automatic upgrade changes: '; diff -y --suppress-common-lines /etc/apt/apt.conf.d/50unattended-upgrades.bak /etc/apt/apt.conf.d/50unattended-upgrades || true"))
+		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, unattendedUpgradesFilePath))
+		sshCommand(client, fmt.Sprintf("echo 'automatic upgrade changes: '; diff -y --suppress-common-lines %v.bak %v || true", unattendedUpgradesFilePath, unattendedUpgradesFilePath))
 	})
 
 	step(&counter, "installing pack", func() {

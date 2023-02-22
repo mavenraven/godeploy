@@ -81,33 +81,35 @@ func assertErrWasDueToNonZeroExitCode(err error, message string) {
 	assertNoErr(err, message)
 }
 
-func safeBackupFile(client *simplessh.Client, filepath string) {
-	_, err := client.Exec(fmt.Sprintf("[ -f \"%v.bak\" ] && [ -f \"%v.bak.finished\" ]", filepath, filepath))
+func safeIdempotentCopyFile(client *simplessh.Client, sourceFilePath, targetFilePath string) {
+	_, err := client.Exec(fmt.Sprintf("[ -f \"%v\" ] && [ -f \"%v.finished\" ]", targetFilePath, targetFilePath))
 	if err == nil {
 		// We don't want clobber the backup once it has been successfully taken, so do nothing.
+		fmt.Printf("%v was previously copied\n", sourceFilePath)
 		return
 	} else {
-		fmt.Printf("nothing to do")
-		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking if backup already completed successfully")
+		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking if target was already copied over successfully")
 	}
 
-	_, err = client.Exec(fmt.Sprintf("[ -f \"%v.bak\" ] && ! [ -f \"%v.bak.finished\" ]", filepath, filepath))
+	_, err = client.Exec(fmt.Sprintf("[ -f \"%v\" ] && ! [ -f \"%v.finished\" ]", targetFilePath, targetFilePath))
 	if err != nil {
-		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking for corrupted .bak file")
+		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking for corrupted target file")
 
-		// The backup was interrupted before it finished the last time it was run. Remove everything and start over.
-		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.bak\" ]", filepath))
-		assertNoErr(err, "unable to remove corrupt bak file")
+		// The copy was interrupted before it finished the last time it was run. Remove everything and start over.
+		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v\" ]", targetFilePath))
+		assertNoErr(err, "unable to remove corrupt target file")
 
-		// Can't forget to remove this one! If we didn't and the copy got interrupted, we would still have a .finished
-		// file, and we could corrupt our data.
-		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.bak.finished\" ]", filepath))
-		assertNoErr(err, "unable to remove corrupt bak.finished file")
+		// Can't forget to remove this one!
+		//
+		// If we left the .finished behind, then ran copy again, then were interrupted, we would have a corrupt
+		// target file with a .finished file.
+		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.finished\" ]", targetFilePath))
+		assertNoErr(err, "unable to remove corrupt .finished file")
 	}
 
-	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v.bak\"", filepath, filepath))
-	assertNoErr(err, "unable to copy file to bak")
+	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v\"", sourceFilePath, targetFilePath))
+	assertNoErr(err, "unable to copy file to target")
 
-	_, err = client.Exec(fmt.Sprintf("touch \"%v.bak.finished\"", filepath))
-	assertNoErr(err, "unable to copy file to bak")
+	_, err = client.Exec(fmt.Sprintf("touch \"%v.finished\"", targetFilePath))
+	assertNoErr(err, "unable to create .finished file")
 }
