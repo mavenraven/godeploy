@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/sfreiberg/simplessh"
+	"golang.org/x/crypto/ssh"
 	"os"
 )
 
@@ -48,7 +49,6 @@ func sshCommand(client *simplessh.Client, command string) {
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
 
-	// this is total hack, but I don't know why the last line gets cut off
 	err = session.Run(command)
 	assertNoErr(err, "could not run session for ssh command")
 
@@ -62,4 +62,41 @@ func installPackage(counter *int, client *simplessh.Client, packageName string) 
 	step(counter, fmt.Sprintf("installing %v", packageName), func() {
 		sshCommand(client, fmt.Sprintf("apt-get install %v -y", packageName))
 	})
+}
+
+func assertErrWasDueToNonZeroExitCode(err error, message string) {
+	if _, ok := err.(*ssh.ExitError); ok {
+		return
+	}
+	assertNoErr(err, message)
+}
+
+func safeBackupFile(client *simplessh.Client, filepath string) {
+	_, err := client.Exec(fmt.Sprintf("[ -f \"%v.bak\" ] && [ -f \"%v.bak.finished\" ]", filepath, filepath))
+	if err == nil {
+		// We don't want clobber a backup that was already taken on a previous run of safeBackupFile.
+		return
+	} else {
+		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking if backup already completed successfully")
+	}
+
+	_, err = client.Exec(fmt.Sprintf("[ -f \"%v.bak\" ] && ! [ -f \"%v.bak.finished\" ]", filepath, filepath))
+	if err != nil {
+		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking for corrupted .bak file")
+
+		// The backup was interrupted before it finished the last time it was run. Remove everything and start over.
+		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.bak\" ]", filepath))
+		assertNoErr(err, "unable to remove corrupt bak file")
+
+		// Can't forget to remove this one! If we didn't and the copy got interrupted, we would still have a .finished
+		// file, and we could corrupt our data.
+		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.bak.finished\" ]", filepath))
+		assertNoErr(err, "unable to remove corrupt bak.finished file")
+	}
+
+	_, err = client.Exec(fmt.Sprintf("cp \"%v\"  \"%v.bak\"", filepath, filepath))
+	assertNoErr(err, "unable to copy file to bak")
+
+	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v.bak\"", filepath, filepath))
+	assertNoErr(err, "unable to copy file to bak")
 }

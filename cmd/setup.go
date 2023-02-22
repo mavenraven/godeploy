@@ -88,10 +88,17 @@ func setup(cmd *cobra.Command, args []string) {
 
 		tempFile := strings.TrimSpace(string(out))
 
-		fmt.Println(tempFile)
+		out, err := client.Exec("[ -f /etc/apt/.conf.d/50unattended-upgrades.bak ] && ! [ -f /etc/apt ]
+		if err != nil {
+			color.Red("could not create temp file")
+			os.Exit(1)
+
+		}
 
 		sshCommand(client, fmt.Sprintf("cp /etc/apt/apt.conf.d/50unattended-upgrades %v", tempFile))
-		sshCommand(client, fmt.Sprintf("[ -f /etc/apt/apt.conf.d/50unattended-upgrades.bak ] || cp /etc/apt/apt.conf.d/50unattended-upgrades /etc/apt/apt.conf.d/50unattended-upgrades.bak"))
+
+		sshCommand(client, fmt.Sprintf("[ -f /etc/apt/apt.conf.d/50unattended-upgrades.bak ] |Signal| cp /etc/apt/apt.conf.d/50unattended-upgrades /etc/apt/apt.conf.d/50unattended-upgrades.bak"))
+
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot \"false\".*|Unattended-Upgrade::Automatic-Reboot \"true\";|'  %v", tempFile))
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\".*|Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\";|'  %v", tempFile))
