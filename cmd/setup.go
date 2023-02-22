@@ -57,24 +57,6 @@ func setup(cmd *cobra.Command, args []string) {
 		}
 	})
 
-	step(&counter, "changing apt source to only security updates", func() {
-		// We want this so that we never bring in backports that could cause issues to our system.
-		out, err := client.Exec("mktemp")
-		assertNoErr(err, "could not create temp file")
-
-		tempFile := strings.TrimSpace(string(out))
-
-		sourcesFilePath := "/etc/apt/sources.list"
-		safeIdempotentCopyFile(client, sourcesFilePath, fmt.Sprintf("%v.bak", sourcesFilePath))
-
-		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
-
-		sshCommand(client, fmt.Sprintf("sed -ni '/^deb.*security/p' %v", tempFile))
-
-		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, sourcesFilePath))
-		sshCommand(client, fmt.Sprintf("echo 'sources:'; cat %v", sourcesFilePath))
-	})
-
 	step(&counter, "updating apt", func() {
 		sshCommand(client, "apt-get update")
 	})
@@ -94,9 +76,9 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "cat /etc/iptables/rules.v4")
 	})
 
-	installPackage(&counter, client, "unattended-upgrades")
+	step(&counter, "setting up automatic security updates", func() {
+		installPackage(&counter, client, "unattended-upgrades")
 
-	step(&counter, "setting up automatic reboots", func() {
 		out, err := client.Exec("mktemp")
 		assertNoErr(err, "could not create temp file")
 
@@ -134,6 +116,23 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, fmt.Sprintf("tar xvf %v", fileName))
 		sshCommand(client, "mv pack /usr/local/bin/pack")
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
+	})
+	step(&counter, "changing apt source to only security updates", func() {
+		// We want this so that we never bring in backports that could cause issues to our system.
+		out, err := client.Exec("mktemp")
+		assertNoErr(err, "could not create temp file")
+
+		tempFile := strings.TrimSpace(string(out))
+
+		sourcesFilePath := "/etc/apt/sources.list"
+		safeIdempotentCopyFile(client, sourcesFilePath, fmt.Sprintf("%v.bak", sourcesFilePath))
+
+		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
+
+		sshCommand(client, fmt.Sprintf("sed -ni '/^deb.*security/p' %v", tempFile))
+
+		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, sourcesFilePath))
+		sshCommand(client, fmt.Sprintf("echo 'sources:'; cat %v", sourcesFilePath))
 	})
 
 	color.Green("Setup is complete. Your server is now ready to use!")
