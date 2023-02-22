@@ -65,8 +65,18 @@ func installPackage(counter *int, client *simplessh.Client, packageName string) 
 }
 
 func assertErrWasDueToNonZeroExitCode(err error, message string) {
-	if _, ok := err.(*ssh.ExitError); ok {
-		return
+	if exitErr, ok := err.(*ssh.ExitError); ok {
+		// I spent an hour looking into this because I wasn't sure if it was right. The following is correct (probably ¯\_(ツ)_/¯),
+		// but the API for `ExitError` is EXTREMELY esoteric.
+		//
+		// POSIX exit codes can only be 0-255. The code in session.go that returns an ExitError uses everything >= 128
+		// for returning a signal. But that code path will also have some value filled in for Signal().
+		//
+		// So if Signal() is blank, then we have a "real" non-zero exit code, even if it's >= 128.
+
+		if exitErr.Signal() == "" {
+			return
+		}
 	}
 	assertNoErr(err, message)
 }
@@ -74,9 +84,10 @@ func assertErrWasDueToNonZeroExitCode(err error, message string) {
 func safeBackupFile(client *simplessh.Client, filepath string) {
 	_, err := client.Exec(fmt.Sprintf("[ -f \"%v.bak\" ] && [ -f \"%v.bak.finished\" ]", filepath, filepath))
 	if err == nil {
-		// We don't want clobber a backup that was already taken on a previous run of safeBackupFile.
+		// We don't want clobber the backup once it has been successfully taken, so do nothing.
 		return
 	} else {
+		fmt.Printf("nothing to do")
 		assertErrWasDueToNonZeroExitCode(err, "interrupted while checking if backup already completed successfully")
 	}
 
@@ -94,9 +105,9 @@ func safeBackupFile(client *simplessh.Client, filepath string) {
 		assertNoErr(err, "unable to remove corrupt bak.finished file")
 	}
 
-	_, err = client.Exec(fmt.Sprintf("cp \"%v\"  \"%v.bak\"", filepath, filepath))
+	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v.bak\"", filepath, filepath))
 	assertNoErr(err, "unable to copy file to bak")
 
-	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v.bak\"", filepath, filepath))
+	_, err = client.Exec(fmt.Sprintf("touch \"%v.bak.finished\"", filepath))
 	assertNoErr(err, "unable to copy file to bak")
 }
