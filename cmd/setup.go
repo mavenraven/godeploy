@@ -20,7 +20,6 @@ var setupCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(setupCmd)
-	flags.setup.tcpPorts = setupCmd.Flags().Int32SliceP("tcpPorts", "", []int32{}, "A comma seperated list of extra tcp ports to open in your server's firewall")
 	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "Time to reboot your server for security updates that require a reboot. An example value is 02:00 for 2 AM. Remember that your server might be in a different timezone than you!")
 	setupCmd.MarkFlagRequired("rebootTime")
 }
@@ -73,6 +72,8 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections")
 		sshCommand(client, "apt-get install iptables-persistent -y")
+		sshCommand(client, "iptables-save > /etc/iptables/rules.v4")
+		sshCommand(client, "cat /etc/iptables/rules.v4")
 	})
 
 	installPackage(&counter, client, "unattended-upgrades")
@@ -100,7 +101,7 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Verbose \"false\".*|Unattended-Upgrade::Verbose \"true\";|' %v", tempFile))
 
 		sshCommand(client, fmt.Sprintf("mv %v /etc/apt/apt.conf.d/50unattended-upgrades", tempFile))
-		sshCommand(client, fmt.Sprintf("echo 'automatic upgrade changes: '; diff /etc/apt/apt.conf.d/50unattended-upgrades.bak /etc/apt/apt.conf.d/50unattended-upgrades || true"))
+		sshCommand(client, fmt.Sprintf("echo 'automatic upgrade changes: '; diff -y --suppress-common-lines /etc/apt/apt.conf.d/50unattended-upgrades.bak /etc/apt/apt.conf.d/50unattended-upgrades || true"))
 	})
 
 	step(&counter, "installing pack", func() {
@@ -121,7 +122,7 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})
 
-	color.Green("Setup is complete. You're now ready to deploy!")
+	color.Green("Setup is complete. Your server is now ready to use!")
 }
 
 var firewallRulesCommand = `iptables-restore <<-'EOF'
@@ -130,7 +131,7 @@ var firewallRulesCommand = `iptables-restore <<-'EOF'
 :FORWARD ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
 -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
--A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 80,443 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 80,443,444 -j ACCEPT
 -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
 -A INPUT -i lo -j ACCEPT
 -A INPUT -j REJECT --reject-with icmp-port-unreachable
