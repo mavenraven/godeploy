@@ -33,27 +33,47 @@ func setup(cmd *cobra.Command, args []string) {
 
 	step(&counter, "Connecting as root", func() {
 		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "root", *flags.root.key, 5*time.Second)
-		assertNoErr(err, "unable to establish a connection")
+		assertNoErr(err, "Unable to establish a connection.")
 	})
 	defer client.Close()
 
 	step(&counter, "Checking OS version of server", func() {
 		output, err := client.Exec("uname -a")
-		assertNoErr(err, "could not get os version")
+		assertNoErr(err, "Could not get os version.")
 
 		if !strings.Contains(string(output), "Linux Ubuntu-2204-jammy-amd64-base") {
-			color.Red("snakeplant is only supported for https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/")
+			color.Red("'snakeplant' is only supported for https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/.")
 			os.Exit(1)
 		}
 	})
 	step(&counter, "Checking architecture of server", func() {
 		output, err := client.Exec("uname -p")
-		assertNoErr(err, "could not get architecture")
+		assertNoErr(err, "Could not get architecture.")
 
 		if !strings.Contains(string(output), "x86_64") {
-			color.Red("snakeplant is only supported on x86_64")
+			color.Red("'snakeplant' is only supported on x86_64.")
 			os.Exit(1)
 		}
+	})
+
+	step(&counter, "Disabling backports", func() {
+		sourcesFilePath := "/etc/apt/sources.list"
+		safeIdempotentCopyFile(client, sourcesFilePath, fmt.Sprintf("%v.bak", sourcesFilePath))
+
+		out, err := client.Exec("mktemp")
+		assertNoErr(err, "Could not create temp file.")
+
+		tempFile := strings.TrimSpace(string(out))
+
+		// We technically don't need to make a copy each time, but it allows us to start fresh every time we run setup,
+		// so if the file got changed and screwed up somehow, setup would fix it.
+		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
+
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*backports.*||' %v", tempFile))
+
+		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, sourcesFilePath))
+		sshCommand(client, fmt.Sprintf("diff -y --suppress-common-lines %v.bak %v || true", sourcesFilePath, sourcesFilePath))
+
 	})
 
 	step(&counter, "Updating APT repositories", func() {
@@ -75,7 +95,7 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "iptables-save > /etc/iptables/rules.v6")
 		printSubStepInformation(fmt.Sprintf("%vIPv4 firewall rules:", LINE_PADDING))
 		sshCommand(client, "cat /etc/iptables/rules.v4")
-		printSubStepInformation(fmt.Sprintf("%vIPv6 firewall rules:", LINE_PADDING))
+		printSubStepInformation(fmt.Sprintf("\n%vIPv6 firewall rules:", LINE_PADDING))
 		sshCommand(client, "cat /etc/iptables/rules.v6")
 	})
 
@@ -84,7 +104,7 @@ func setup(cmd *cobra.Command, args []string) {
 	step(&counter, "Setting up automatic security updates", func() {
 
 		out, err := client.Exec("mktemp")
-		assertNoErr(err, "could not create temp file")
+		assertNoErr(err, "Could not create temp file.")
 
 		tempFile := strings.TrimSpace(string(out))
 
@@ -93,9 +113,9 @@ func setup(cmd *cobra.Command, args []string) {
 
 		sshCommand(client, fmt.Sprintf("cp %v %v", unattendedUpgradesFilePath, tempFile))
 
-		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot \"false\".*|Unattended-Upgrade::Automatic-Reboot \"true\";|'  %v", tempFile))
-		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\".*|Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\";|'  %v", tempFile))
-		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-Time \"02:00\".*|Unattended-Upgrade::Automatic-Reboot-Time \"%v\";|'  %v", *flags.setup.rebootTime, tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot \"false\".*|Unattended-Upgrade::Automatic-Reboot \"true\";|' %v", tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\".*|Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\";|' %v", tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-Time \"02:00\".*|Unattended-Upgrade::Automatic-Reboot-Time \"%v\";|' %v", *flags.setup.rebootTime, tempFile))
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::SyslogEnable \"false\".*|Unattended-Upgrade::SyslogEnable \"true\";|' %v", tempFile))
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Verbose \"false\".*|Unattended-Upgrade::Verbose \"true\";|' %v", tempFile))
@@ -107,7 +127,7 @@ func setup(cmd *cobra.Command, args []string) {
 
 	step(&counter, "Installing pack", func() {
 		fileName := "pack-v0.28.0-linux.tgz"
-		curlCommand(client, "-m 20 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
+		curlCommand(client, fmt.Sprintf("-m 20 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/%v", fileName))
 
 		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
 		assertNoErr(err, "Could not get hash of pack-cli tarball.")
