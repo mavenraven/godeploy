@@ -87,6 +87,12 @@ func setup(cmd *cobra.Command, args []string) {
 
 	installPackage(&counter, client, "docker")
 	installPackage(&counter, client, "curl")
+
+	step(&counter, "Configuring iptables-persistent", func() {
+		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
+		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections")
+	})
+
 	installPackage(&counter, client, "iptables-persistent")
 
 	step(&counter, "Installing pack", func() {
