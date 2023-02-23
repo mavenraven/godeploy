@@ -21,6 +21,8 @@ var flags = struct {
 	}
 }{}
 
+const LINE_PADDING = "    "
+
 func step(counter *int, beginDesc string, action func()) {
 	numSize := len(strconv.FormatInt(int64(*counter), 10))
 
@@ -48,8 +50,8 @@ func printSubStepInformation(message string) {
 }
 func assertNoErr(err error, message string) {
 	if err != nil {
-		color.Yellow("    %v\n", err)
-		color.HiRed("    %v", message)
+		color.Red("%v%v\n", LINE_PADDING, err)
+		color.HiRed("%v%v", LINE_PADDING, message)
 		os.Exit(1)
 	}
 }
@@ -74,14 +76,15 @@ func (f *LineHolder) Write(p []byte) (n int, err error) {
 
 func sshCommand(client *simplessh.Client, command string) {
 	session, err := client.SSHClient.NewSession()
-	assertNoErr(err, "could not open session for ssh command")
+	assertNoErr(err, "Could not open session for running an ssh command.")
 
-	l := &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
-		fmt.Printf("    %v\n", string(bytes))
+	session.Stdout = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
+		fmt.Printf("%v%v\n", LINE_PADDING, string(bytes))
 	}}
 
-	session.Stdout = l
-	session.Stderr = l
+	session.Stderr = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
+		color.Red("%v%v\n", LINE_PADDING, string(bytes))
+	}}
 
 	err = session.Run(command)
 
@@ -95,10 +98,10 @@ func installPackage(counter *int, client *simplessh.Client, packageName string) 
 	step(counter, fmt.Sprintf("installing %v", packageName), func() {
 		// We don't want to run install on subsequent runs as that could cause the package to update and cause a broken system.
 		_, err := client.Exec(fmt.Sprintf("dpkg -l %v", packageName))
-		assertAnyErrWasDueToNonZeroExitCode(err, fmt.Sprintf("%v'dpkg' listing was interrupted"))
+		assertAnyErrWasDueToNonZeroExitCode(err, fmt.Sprintf("%v'dpkg' listing was interrupted.", LINE_PADDING))
 
 		if err == nil {
-			printSubStepInformation(fmt.Sprintf("    '%v' package was previously installed.\n", packageName))
+			printSubStepInformation(fmt.Sprintf("%v'%v' package was previously installed.\n", LINE_PADDING, packageName))
 			return
 		}
 
@@ -125,31 +128,31 @@ func assertAnyErrWasDueToNonZeroExitCode(err error, message string) {
 
 func safeIdempotentCopyFile(client *simplessh.Client, sourceFilePath, targetFilePath string) {
 	_, err := client.Exec(fmt.Sprintf("[ -f \"%v\" ] && [ -f \"%v.finished\" ]", targetFilePath, targetFilePath))
-	assertAnyErrWasDueToNonZeroExitCode(err, "interrupted while checking if target was already copied over successfully")
+	assertAnyErrWasDueToNonZeroExitCode(err, "Interrupted while checking if target was already copied over successfully.")
 
 	if err == nil {
 		return
 	}
 
 	_, err = client.Exec(fmt.Sprintf("[ -f \"%v\" ] && ! [ -f \"%v.finished\" ]", targetFilePath, targetFilePath))
-	assertAnyErrWasDueToNonZeroExitCode(err, "interrupted while checking for corrupted target file")
+	assertAnyErrWasDueToNonZeroExitCode(err, "Interrupted while checking for corrupted target file.")
 
 	if err != nil {
 		// The copy was interrupted before it finished the last time it was run. Remove everything and start over.
 		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v\" ]", targetFilePath))
-		assertNoErr(err, "unable to remove corrupt target file")
+		assertNoErr(err, "Unable to remove corrupt target file.")
 
 		// Can't forget to remove this one!
 		//
 		// If we left the .finished behind, then ran copy again, then were interrupted, we would have a corrupt
 		// target file with a .finished file.
 		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.finished\" ]", targetFilePath))
-		assertNoErr(err, "unable to remove corrupt .finished file")
+		assertNoErr(err, "Unable to remove corrupt .finished file.")
 	}
 
 	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v\"", sourceFilePath, targetFilePath))
-	assertNoErr(err, "unable to copy file to target")
+	assertNoErr(err, "Unable to copy file to target.")
 
 	_, err = client.Exec(fmt.Sprintf("touch \"%v.finished\"", targetFilePath))
-	assertNoErr(err, "unable to create .finished file")
+	assertNoErr(err, "Unable to create .finished file.")
 }
