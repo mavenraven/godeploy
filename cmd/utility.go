@@ -151,7 +151,8 @@ func curlCommand(client *simplessh.Client, command string) {
 func installPackage(counter *int, client *simplessh.Client, packageName string) {
 	step(counter, fmt.Sprintf("Installing %v", packageName), func() {
 		// We don't want to run install on subsequent runs as that could cause the package to update and cause a broken system.
-		_, err := client.Exec(fmt.Sprintf("dpkg -l %v", packageName))
+		// See https://serverfault.com/a/670688
+		_, err := client.Exec(fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive dpkg -l %v", packageName))
 		assertAnyErrWasDueToNonZeroExitCode(err, fmt.Sprintf("%v'dpkg' listing was interrupted.", LINE_PADDING))
 
 		if err == nil {
