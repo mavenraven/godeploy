@@ -48,15 +48,23 @@ func step(counter *int, beginDesc string, action func()) {
 	*counter++
 }
 
+func printDiffHeader() {
+	printSubStepInformation(fmt.Sprintf("%vDiff of changes. Left of the '|' is before the file was changed, right of the '|' is after.", LINE_PADDING))
+}
+
 func printSubStepInformation(message string) {
 	color.Cyan(message)
 }
 func assertNoErr(err error, message string) {
 	if err != nil {
 		color.Red("%v%v\n", LINE_PADDING, err)
-		color.HiRed("%v%v", LINE_PADDING, message)
-		os.Exit(1)
+		printMessageAndQuit(message)
 	}
+}
+
+func printMessageAndQuit(message string) {
+	color.HiRed("%v%v", LINE_PADDING, message)
+	os.Exit(1)
 }
 
 type LineHolder struct {

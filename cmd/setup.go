@@ -72,6 +72,7 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*backports.*||' %v", tempFile))
 
 		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, sourcesFilePath))
+		printDiffHeader()
 		sshCommand(client, fmt.Sprintf("diff -y --suppress-common-lines %v.bak %v || true", sourcesFilePath, sourcesFilePath))
 
 	})
@@ -87,6 +88,42 @@ func setup(cmd *cobra.Command, args []string) {
 	installPackage(&counter, client, "docker")
 	installPackage(&counter, client, "curl")
 	installPackage(&counter, client, "iptables-persistent")
+
+	step(&counter, "Installing pack", func() {
+		pack028TarSha := "4f51b82dea355cffc62b7588a2dfa461e26621dda3821034830702e5cae6f587"
+		pack028BinSha := "01b42a9125418ff46e7ed06ccdc38f9f28e6c0d31e07a39791cf633f8ec5e6e0"
+
+		_, err := client.Exec("[ -f /usr/local/bin/pack ]")
+		assertAnyErrWasDueToNonZeroExitCode(err, "Could not check if 'pack' already exists.")
+		if err == nil {
+			out, err := client.Exec("sha256sum /usr/local/bin/pack | awk '{print $1}'")
+			assertNoErr(err, "Could not check hash of already downloaded 'pack'")
+
+			if strings.TrimSpace(string(out)) == pack028BinSha {
+				printSubStepInformation(fmt.Sprintf("%v'pack' was previously installed.", LINE_PADDING))
+				return
+			}
+
+			printSubStepInformation(fmt.Sprintf("%v'pack' was downloaded previously, but is corrupt. Re-downloading.", LINE_PADDING))
+		} else {
+			printSubStepInformation(fmt.Sprintf("%v'pack' was not previously downloaded.", LINE_PADDING))
+		}
+
+		fileName := "pack-v0.28.0-linux.tgz"
+		curlCommand(client, fmt.Sprintf("-m 20 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/%v", fileName))
+
+		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
+		assertNoErr(err, "Could not get hash of pack-cli tarball.")
+
+		if strings.TrimSpace(string(out)) != pack028TarSha {
+			printMessageAndQuit("'pack-cli' tarball is corrupt, or someone is doing something sneaky.")
+		}
+
+		_, err = client.Exec(fmt.Sprintf("tar xvf %v", fileName))
+		assertNoErr(err, "Could not un-tar pack.")
+		sshCommand(client, "mv pack /usr/local/bin/pack")
+		sshCommand(client, "chmod +x /usr/local/bin/pack")
+	})
 
 	step(&counter, "Persisting firewall rules", func() {
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
@@ -108,7 +145,9 @@ func setup(cmd *cobra.Command, args []string) {
 
 		tempFile := strings.TrimSpace(string(out))
 
+		// Some good context about this file: https://askubuntu.com/a/878600
 		unattendedUpgradesFilePath := "/etc/apt/apt.conf.d/50unattended-upgrades"
+
 		safeIdempotentCopyFile(client, unattendedUpgradesFilePath, fmt.Sprintf("%v.bak", unattendedUpgradesFilePath))
 
 		sshCommand(client, fmt.Sprintf("cp %v %v", unattendedUpgradesFilePath, tempFile))
@@ -122,24 +161,8 @@ func setup(cmd *cobra.Command, args []string) {
 
 		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, unattendedUpgradesFilePath))
 
+		printDiffHeader()
 		sshCommand(client, fmt.Sprintf("diff -y --suppress-common-lines %v.bak %v || true", unattendedUpgradesFilePath, unattendedUpgradesFilePath))
-	})
-
-	step(&counter, "Installing pack", func() {
-		fileName := "pack-v0.28.0-linux.tgz"
-		curlCommand(client, fmt.Sprintf("-m 20 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/%v", fileName))
-
-		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
-		assertNoErr(err, "Could not get hash of pack-cli tarball.")
-
-		if strings.TrimSpace(string(out)) != "4f51b82dea355cffc62b7588a2dfa461e26621dda3821034830702e5cae6f587" {
-			assertNoErr(fmt.Errorf("hashes did not match"), "'pack-cli' tarball is corrupt, or someone is doing something sneaky.")
-		}
-
-		_, err = client.Exec(fmt.Sprintf("tar xvf %v", fileName))
-		assertNoErr(err, "Could not un-tar pack.")
-		sshCommand(client, "mv pack /usr/local/bin/pack")
-		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})
 
 	color.HiBlue("Setup is complete. Your server is now ready to use!")
