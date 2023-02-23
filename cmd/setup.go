@@ -122,7 +122,7 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})
 
-	color.Green("Setup is complete. Your server is now ready to use!")
+	color.HiBlue("Setup is complete. Your server is now ready to use!")
 }
 
 var firewallRulesCommand = `iptables-restore <<-'EOF'

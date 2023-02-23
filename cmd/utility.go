@@ -130,7 +130,6 @@ func curlCommand(client *simplessh.Client, command string) {
 	session, err := client.SSHClient.NewSession()
 	assertNoErr(err, "Could not open session for running a curl command over ssh.")
 
-	session.Stdout = &CurlWriter{buffer: make([]byte, 0, 5)}
 	session.Stderr = &CurlWriter{buffer: make([]byte, 0, 5)}
 
 	err = session.Run(fmt.Sprintf("curl %v", command))
