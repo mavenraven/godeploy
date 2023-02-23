@@ -108,7 +108,8 @@ func setup(cmd *cobra.Command, args []string) {
 
 	step(&counter, "Installing pack", func() {
 		fileName := "pack-v0.28.0-linux.tgz"
-		curlCommand(client, "-m 5 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
+		//curlCommand(client, "-m 5 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
+		curlCommand(client, "-O -f -L --progress-bar https://releases.ubuntu.com/22.04.1/ubuntu-22.04.1-desktop-amd64.iso")
 
 		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
 		assertNoErr(err, "Could not get hash of pack-cli tarball.")

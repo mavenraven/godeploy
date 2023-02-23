@@ -96,18 +96,36 @@ func sshCommand(client *simplessh.Client, command string) {
 	}
 }
 
+type CurlWriter struct {
+	buffer []byte
+}
+
+func (f *CurlWriter) Write(p []byte) (n int, err error) {
+
+	for _, c := range p {
+		if c >= byte(48) && c <= byte(57) {
+			f.buffer = append(f.buffer, c)
+			continue
+		}
+		if c == byte(37) {
+
+			f.buffer = append(f.buffer, c)
+			fmt.Printf("%c     %v", byte(13), string(f.buffer))
+			f.buffer = make([]byte, 0, 5)
+			continue
+		}
+		continue
+	}
+	return len(p), nil
+}
+
 // Mainly needed because curl output is very non-standard.
 func curlCommand(client *simplessh.Client, command string) {
 	session, err := client.SSHClient.NewSession()
 	assertNoErr(err, "Could not open session for running a curl command over ssh.")
 
-	session.Stdout = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
-		fmt.Printf("%v\n", string(bytes))
-	}}
-
-	session.Stderr = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
-		fmt.Printf("%v\n", string(bytes))
-	}}
+	session.Stdout = &CurlWriter{buffer: make([]byte, 0, 5)}
+	session.Stderr = &CurlWriter{buffer: make([]byte, 0, 5)}
 
 	err = session.Run(fmt.Sprintf("curl %v", command))
 
