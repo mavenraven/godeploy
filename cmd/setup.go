@@ -31,13 +31,13 @@ func setup(cmd *cobra.Command, args []string) {
 	var client *simplessh.Client
 	var err error
 
-	step(&counter, "connecting as root", func() {
+	step(&counter, "Connecting as root", func() {
 		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "root", *flags.root.key, 5*time.Second)
 		assertNoErr(err, "unable to establish a connection")
 	})
 	defer client.Close()
 
-	step(&counter, "checking OS version of server", func() {
+	step(&counter, "Checking OS version of server", func() {
 		output, err := client.Exec("uname -a")
 		assertNoErr(err, "could not get os version")
 
@@ -47,7 +47,7 @@ func setup(cmd *cobra.Command, args []string) {
 		}
 	})
 
-	step(&counter, "checking architecture of server", func() {
+	step(&counter, "Checking architecture of server", func() {
 		output, err := client.Exec("uname -p")
 		assertNoErr(err, "could not get architecture")
 
@@ -57,27 +57,33 @@ func setup(cmd *cobra.Command, args []string) {
 		}
 	})
 
-	step(&counter, "updating apt", func() {
+	step(&counter, "Updating APT repositories", func() {
 		sshCommand(client, "apt-get update")
 	})
 
-	step(&counter, "loading firewall rules", func() {
+	step(&counter, "Loading firewall rules", func() {
 		sshCommand(client, firewallRulesCommand)
 	})
 
 	installPackage(&counter, client, "docker")
 	installPackage(&counter, client, "curl")
+	installPackage(&counter, client, "iptables-persistent")
+	installPackage(&counter, client, "sdfdsfds")
 
-	step(&counter, "persisting firewall rules", func() {
+	step(&counter, "Persisting firewall rules", func() {
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections")
-		sshCommand(client, "apt-get install iptables-persistent -y")
 		sshCommand(client, "iptables-save > /etc/iptables/rules.v4")
+		sshCommand(client, "iptables-save > /etc/iptables/rules.v6")
+		printSubStepInformation("\nIPv4 firewall rules:")
 		sshCommand(client, "cat /etc/iptables/rules.v4")
+		printSubStepInformation("\nIPv6 firewall rules:")
+		sshCommand(client, "cat /etc/iptables/rules.v6")
 	})
 
-	step(&counter, "setting up automatic security updates", func() {
-		installPackage(&counter, client, "unattended-upgrades")
+	installPackage(&counter, client, "unattended-upgrades")
+
+	step(&counter, "Setting up automatic security updates", func() {
 
 		out, err := client.Exec("mktemp")
 		assertNoErr(err, "could not create temp file")
@@ -97,10 +103,11 @@ func setup(cmd *cobra.Command, args []string) {
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Verbose \"false\".*|Unattended-Upgrade::Verbose \"true\";|' %v", tempFile))
 
 		sshCommand(client, fmt.Sprintf("mv %v %v", tempFile, unattendedUpgradesFilePath))
-		sshCommand(client, fmt.Sprintf("echo 'automatic upgrade changes: '; diff -y --suppress-common-lines %v.bak %v || true", unattendedUpgradesFilePath, unattendedUpgradesFilePath))
+
+		sshCommand(client, fmt.Sprintf("diff -y --suppress-common-lines %v.bak %v || true", unattendedUpgradesFilePath, unattendedUpgradesFilePath))
 	})
 
-	step(&counter, "installing pack", func() {
+	step(&counter, "Installing pack", func() {
 		fileName := "pack-v0.28.0-linux.tgz"
 		sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
 

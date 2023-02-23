@@ -6,6 +6,7 @@ import (
 	"github.com/sfreiberg/simplessh"
 	"golang.org/x/crypto/ssh"
 	"os"
+	"strconv"
 )
 
 var flags = struct {
@@ -21,39 +22,71 @@ var flags = struct {
 }{}
 
 func step(counter *int, beginDesc string, action func()) {
-	color.Green("%v. %v...\n", *counter, beginDesc)
+	numSize := len(strconv.FormatInt(int64(*counter), 10))
+
+	var padding string
+	if numSize == 1 {
+		padding = "  "
+	} else {
+		padding = " "
+	}
+
+	color.HiGreen("%v.%v%v...\n", *counter, padding, beginDesc)
 	action()
+
+	if numSize == 1 {
+		padding = "  "
+	} else {
+		padding = "  "
+	}
+	color.HiGreen("%v  complete.\n", padding)
 	*counter++
-	color.Green("   complete\n")
+}
+
+func printSubStepInformation(message string) {
+	color.Cyan(message)
 }
 func assertNoErr(err error, message string) {
 	if err != nil {
-		color.Red("%v", message)
-		color.Yellow(": %v\n", err)
+		color.Yellow("    %v\n", err)
+		color.HiRed("    %v", message)
 		os.Exit(1)
 	}
 }
 
-func assertNoErrF(err error, message string, args string) {
-	if err != nil {
-		color.Red(message, args)
-		color.Yellow(": %v\n", err)
-		os.Exit(1)
+type LineHolder struct {
+	lineCallback func([]byte)
+	buffer       []byte
+}
+
+func (f *LineHolder) Write(p []byte) (n int, err error) {
+	for _, c := range p {
+		if c == '\n' {
+			f.lineCallback(f.buffer)
+			f.buffer = make([]byte, 0, 100)
+			continue
+		}
+		f.buffer = append(f.buffer, c)
 	}
+
+	return len(p), nil
 }
 
 func sshCommand(client *simplessh.Client, command string) {
 	session, err := client.SSHClient.NewSession()
 	assertNoErr(err, "could not open session for ssh command")
 
-	session.Stdout = os.Stdout
-	session.Stderr = os.Stderr
+	l := &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
+		fmt.Printf("    %v\n", string(bytes))
+	}}
+
+	session.Stdout = l
+	session.Stderr = l
 
 	err = session.Run(command)
-	assertNoErr(err, "could not run session for ssh command")
 
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		color.HiRed("    %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -62,10 +95,10 @@ func installPackage(counter *int, client *simplessh.Client, packageName string) 
 	step(counter, fmt.Sprintf("installing %v", packageName), func() {
 		// We don't want to run install on subsequent runs as that could cause the package to update and cause a broken system.
 		_, err := client.Exec(fmt.Sprintf("dpkg -l %v", packageName))
-		assertAnyErrWasDueToNonZeroExitCode(err, "dpkg listing was interrupted")
+		assertAnyErrWasDueToNonZeroExitCode(err, fmt.Sprintf("%v'dpkg' listing was interrupted"))
 
 		if err == nil {
-			fmt.Printf("%v package was installed previously\n", packageName)
+			printSubStepInformation(fmt.Sprintf("    '%v' package was previously installed.\n", packageName))
 			return
 		}
 
@@ -95,8 +128,6 @@ func safeIdempotentCopyFile(client *simplessh.Client, sourceFilePath, targetFile
 	assertAnyErrWasDueToNonZeroExitCode(err, "interrupted while checking if target was already copied over successfully")
 
 	if err == nil {
-		// We don't want clobber the backup once it has been successfully taken, so do nothing.
-		fmt.Printf("%v was previously copied\n", sourceFilePath)
 		return
 	}
 
