@@ -68,16 +68,15 @@ func setup(cmd *cobra.Command, args []string) {
 	installPackage(&counter, client, "docker")
 	installPackage(&counter, client, "curl")
 	installPackage(&counter, client, "iptables-persistent")
-	installPackage(&counter, client, "sdfdsfds")
 
 	step(&counter, "Persisting firewall rules", func() {
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections")
 		sshCommand(client, "echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections")
 		sshCommand(client, "iptables-save > /etc/iptables/rules.v4")
 		sshCommand(client, "iptables-save > /etc/iptables/rules.v6")
-		printSubStepInformation("\nIPv4 firewall rules:")
+		printSubStepInformation(fmt.Sprintf("%vIPv4 firewall rules:", LINE_PADDING))
 		sshCommand(client, "cat /etc/iptables/rules.v4")
-		printSubStepInformation("\nIPv6 firewall rules:")
+		printSubStepInformation(fmt.Sprintf("%vIPv6 firewall rules:", LINE_PADDING))
 		sshCommand(client, "cat /etc/iptables/rules.v6")
 	})
 
@@ -109,18 +108,17 @@ func setup(cmd *cobra.Command, args []string) {
 
 	step(&counter, "Installing pack", func() {
 		fileName := "pack-v0.28.0-linux.tgz"
-		sshCommand(client, "curl -m 5 -O -L https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
+		curlCommand(client, "-m 5 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
 
 		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
-		assertNoErr(err, "could not get hash of pack-cli tarball")
-		fmt.Printf(string(out))
+		assertNoErr(err, "Could not get hash of pack-cli tarball.")
 
 		if strings.TrimSpace(string(out)) != "4f51b82dea355cffc62b7588a2dfa461e26621dda3821034830702e5cae6f587" {
-			fmt.Println("pack-cli tarball corrupt, or someone is doing something sneaky...")
-			os.Exit(1)
+			assertNoErr(fmt.Errorf("hashes did not match"), "'pack-cli' tarball is corrupt, or someone is doing something sneaky.")
 		}
 
-		sshCommand(client, fmt.Sprintf("tar xvf %v", fileName))
+		_, err = client.Exec(fmt.Sprintf("tar xvf %v", fileName))
+		assertNoErr(err, "Could not un-tar pack.")
 		sshCommand(client, "mv pack /usr/local/bin/pack")
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})

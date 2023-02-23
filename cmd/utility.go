@@ -23,6 +23,8 @@ var flags = struct {
 
 const LINE_PADDING = "    "
 
+// My general philosophy of whether to print output of stuff inside a step is that if it's over the network,
+// like APT or curl, just print everything. Otherwise, skip it.
 func step(counter *int, beginDesc string, action func()) {
 	numSize := len(strconv.FormatInt(int64(*counter), 10))
 
@@ -87,6 +89,27 @@ func sshCommand(client *simplessh.Client, command string) {
 	}}
 
 	err = session.Run(command)
+
+	if err != nil {
+		color.HiRed("    %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// Mainly needed because curl output is very non-standard.
+func curlCommand(client *simplessh.Client, command string) {
+	session, err := client.SSHClient.NewSession()
+	assertNoErr(err, "Could not open session for running a curl command over ssh.")
+
+	session.Stdout = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
+		fmt.Printf("%v\n", string(bytes))
+	}}
+
+	session.Stderr = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
+		fmt.Printf("%v\n", string(bytes))
+	}}
+
+	err = session.Run(fmt.Sprintf("curl %v", command))
 
 	if err != nil {
 		color.HiRed("    %v\n", err)
