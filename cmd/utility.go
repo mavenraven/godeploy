@@ -21,6 +21,7 @@ var flags = struct {
 	}
 }{}
 
+const CARRIAGE_RETURN = 13
 const LINE_PADDING = "    "
 
 // My general philosophy of whether to print output of stuff inside a step is that if it's over the network,
@@ -100,21 +101,26 @@ type CurlWriter struct {
 	buffer []byte
 }
 
-func (f *CurlWriter) Write(p []byte) (n int, err error) {
+func isAnAsciiNumber(c byte) bool {
+	return c >= 48 && c <= 57
+}
 
+func (f *CurlWriter) Write(p []byte) (n int, err error) {
 	for _, c := range p {
-		if c >= byte(48) && c <= byte(57) {
+		if isAnAsciiNumber(c) {
 			f.buffer = append(f.buffer, c)
 			continue
 		}
-		if c == byte(37) {
-
+		if c == '%' {
+			f.buffer = append(f.buffer[:len(f.buffer)-1], '.', f.buffer[len(f.buffer)-1])
 			f.buffer = append(f.buffer, c)
-			fmt.Printf("%c     %v", byte(13), string(f.buffer))
+			fmt.Printf("%c%vDownload progress: %v", CARRIAGE_RETURN, LINE_PADDING, string(f.buffer))
 			f.buffer = make([]byte, 0, 5)
 			continue
 		}
-		continue
+		if c == '\n' {
+			fmt.Println()
+		}
 	}
 	return len(p), nil
 }

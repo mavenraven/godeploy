@@ -46,7 +46,6 @@ func setup(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 	})
-
 	step(&counter, "Checking architecture of server", func() {
 		output, err := client.Exec("uname -p")
 		assertNoErr(err, "could not get architecture")
@@ -108,8 +107,7 @@ func setup(cmd *cobra.Command, args []string) {
 
 	step(&counter, "Installing pack", func() {
 		fileName := "pack-v0.28.0-linux.tgz"
-		//curlCommand(client, "-m 5 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
-		curlCommand(client, "-O -f -L --progress-bar https://releases.ubuntu.com/22.04.1/ubuntu-22.04.1-desktop-amd64.iso")
+		curlCommand(client, "-m 20 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/pack-v0.28.0-linux.tgz")
 
 		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
 		assertNoErr(err, "Could not get hash of pack-cli tarball.")
