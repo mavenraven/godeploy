@@ -28,6 +28,7 @@ func init() {
 }
 
 func setup(cmd *cobra.Command, args []string) {
+	panic("need to look into the docker.io thing and use pack config default-builder heroku/builder:22 ")
 	socket := fmt.Sprintf("%v:%v", *Flags.Setup.Host, *Flags.Setup.Port)
 
 	counter := 1
