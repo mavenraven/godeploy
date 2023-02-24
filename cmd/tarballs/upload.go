@@ -43,11 +43,12 @@ func upload(command *cobra.Command, args []string) {
 	client, err := simplessh.ConnectWithKeyFileTimeout(socket, "root", *cmd.Flags.Upload.Key, 5*time.Second)
 	cmd.AssertNoErr(err, "Unable to establish a connection.")
 
-	_, err = client.Exec("mkdir -p /var/snakeplant/tarballs")
-	cmd.AssertNoErr(err, "Unable to create /var/snakeplant/tarballs.")
+	remoteDir := "/var/local/snakeplant/tarballs"
+	_, err = client.Exec(fmt.Sprintf("mkdir -p %s", remoteDir))
+	cmd.AssertNoErr(err, fmt.Sprintf("Unable to create %v.", remoteDir))
 
 	// don't want to use filepath.Join because it's the remote serve path
-	remoteFileName := fmt.Sprintf("/var/snakeplant/tarballs/%v", tarballFileName)
+	remoteFileName := path.Join(remoteDir, tarballFileName)
 
 	fmt.Printf("uploading tarball to %v at %v...\n", remoteFileName, time.Now().Format("15:04:05"))
 
@@ -144,6 +145,13 @@ func getGitShortShaForDir(wd string, err error) (string, bool) {
 		return "", false
 	}
 
+	out, err = exec.Command("git", "rev-parse", "--short", "HEAD").CombinedOutput()
+	if err != nil {
+		fmt.Printf("couldnt get git short SHA: %v\n", err)
+		return "", false
+	}
+	sha := strings.TrimSpace(string(out))
+
 	out, err = exec.Command("git", "diff", "--stat").CombinedOutput()
 	if err != nil {
 		fmt.Printf("couldnt get git diff: %v\n", err)
@@ -151,14 +159,9 @@ func getGitShortShaForDir(wd string, err error) (string, bool) {
 	}
 
 	if string(out) != "" {
-		fmt.Println("directory has uncommitted changes, skipping add sha to tarball name")
-		return "", false
+		fmt.Println("directory has uncommitted changes")
+		return fmt.Sprintf("%v-DIRTY", sha), true
 	}
 
-	out, err = exec.Command("git", "rev-parse", "--short", "HEAD").CombinedOutput()
-	if err != nil {
-		fmt.Printf("couldnt get git short SHA: %v\n", err)
-		return "", false
-	}
-	return strings.TrimSpace(string(out)), true
+	return sha, true
 }
