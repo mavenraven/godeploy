@@ -9,15 +9,14 @@ import (
 	"strconv"
 )
 
-var flags = struct {
-	root struct {
-		port *int
-		host *string
-		key  *string
+var Flags = struct {
+	Root struct {
+		Port *int
+		Host *string
+		Key  *string
 	}
-	setup struct {
-		tcpPorts   *[]int32
-		rebootTime *string
+	Setup struct {
+		RebootTime *string
 	}
 }{}
 
@@ -55,7 +54,7 @@ func printDiffHeader() {
 func printSubStepInformation(message string) {
 	color.Cyan(message)
 }
-func assertNoErr(err error, message string) {
+func AssertNoErr(err error, message string) {
 	if err != nil {
 		color.Red("%v%v\n", LINE_PADDING, err)
 		printMessageAndQuit(message)
@@ -87,7 +86,7 @@ func (f *LineHolder) Write(p []byte) (n int, err error) {
 
 func sshCommand(client *simplessh.Client, command string) {
 	session, err := client.SSHClient.NewSession()
-	assertNoErr(err, "Could not open session for running an ssh command.")
+	AssertNoErr(err, "Could not open session for running an ssh command.")
 
 	session.Stdout = &LineHolder{buffer: make([]byte, 0, 100), lineCallback: func(bytes []byte) {
 		fmt.Printf("%v%v\n", LINE_PADDING, string(bytes))
@@ -136,7 +135,7 @@ func (f *CurlWriter) Write(p []byte) (n int, err error) {
 // Mainly needed because curl output is very non-standard.
 func curlCommand(client *simplessh.Client, command string) {
 	session, err := client.SSHClient.NewSession()
-	assertNoErr(err, "Could not open session for running a curl command over ssh.")
+	AssertNoErr(err, "Could not open session for running a curl command over ssh.")
 
 	session.Stderr = &CurlWriter{buffer: make([]byte, 0, 5)}
 
@@ -178,7 +177,7 @@ func assertAnyErrWasDueToNonZeroExitCode(err error, message string) {
 			return
 		}
 	}
-	assertNoErr(err, message)
+	AssertNoErr(err, message)
 }
 
 func safeIdempotentCopyFile(client *simplessh.Client, sourceFilePath, targetFilePath string) {
@@ -195,19 +194,19 @@ func safeIdempotentCopyFile(client *simplessh.Client, sourceFilePath, targetFile
 	if err != nil {
 		// The copy was interrupted before it finished the last time it was run. Remove everything and start over.
 		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v\" ]", targetFilePath))
-		assertNoErr(err, "Unable to remove corrupt target file.")
+		AssertNoErr(err, "Unable to remove corrupt target file.")
 
 		// Can't forget to remove this one!
 		//
 		// If we left the .finished behind, then ran copy again, then were interrupted, we would have a corrupt
 		// target file with a .finished file.
 		_, err = client.Exec(fmt.Sprintf("rm -f  \"%v.finished\" ]", targetFilePath))
-		assertNoErr(err, "Unable to remove corrupt .finished file.")
+		AssertNoErr(err, "Unable to remove corrupt .finished file.")
 	}
 
 	_, err = client.Exec(fmt.Sprintf("cp \"%v\" \"%v\"", sourceFilePath, targetFilePath))
-	assertNoErr(err, "Unable to copy file to target.")
+	AssertNoErr(err, "Unable to copy file to target.")
 
 	_, err = client.Exec(fmt.Sprintf("touch \"%v.finished\"", targetFilePath))
-	assertNoErr(err, "Unable to create .finished file.")
+	AssertNoErr(err, "Unable to create .finished file.")
 }

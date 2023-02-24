@@ -11,37 +11,37 @@ import (
 )
 
 var setupCmd = &cobra.Command{
-	Use:   "setup",
+	Use:   "Setup",
 	Short: "Sets up your server to be ready for use.",
-	Long:  `'setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
+	Long:  `'Setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
 	Run:   setup,
 }
 
 func init() {
 	RootCmd.AddCommand(setupCmd)
-	flags.root.port = setupCmd.Flags().IntP("port", "", 22, "The port number of the ssh daemon running on your server.")
-	flags.root.host = setupCmd.Flags().StringP("host", "", "", "The host name or IP address of your server.")
-	flags.root.key = setupCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
-	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "The time that your server will be configured to reboot to apply security patches. An example is '2:00'.")
-	setupCmd.MarkFlagRequired("rebootTime")
+	Flags.Root.Port = setupCmd.Flags().IntP("Port", "", 22, "The Port number of the ssh daemon running on your server.")
+	Flags.Root.Host = setupCmd.Flags().StringP("Host", "", "", "The Host name or IP address of your server.")
+	Flags.Root.Key = setupCmd.Flags().StringP("Key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
+	Flags.Setup.RebootTime = setupCmd.Flags().StringP("RebootTime", "", "", "The time that your server will be configured to reboot to apply security patches. An example is '2:00'.")
+	setupCmd.MarkFlagRequired("RebootTime")
 }
 
 func setup(cmd *cobra.Command, args []string) {
-	socket := fmt.Sprintf("%v:%v", *flags.root.host, *flags.root.port)
+	socket := fmt.Sprintf("%v:%v", *Flags.Root.Host, *Flags.Root.Port)
 
 	counter := 1
 	var client *simplessh.Client
 	var err error
 
-	step(&counter, "Connecting as root", func() {
-		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "root", *flags.root.key, 5*time.Second)
-		assertNoErr(err, "Unable to establish a connection.")
+	step(&counter, "Connecting as Root", func() {
+		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "Root", *Flags.Root.Key, 5*time.Second)
+		AssertNoErr(err, "Unable to establish a connection.")
 	})
 	defer client.Close()
 
 	step(&counter, "Checking OS version of server", func() {
 		output, err := client.Exec("uname -a")
-		assertNoErr(err, "Could not get os version.")
+		AssertNoErr(err, "Could not get os version.")
 
 		if !strings.Contains(string(output), "Linux Ubuntu-2204-jammy-amd64-base") {
 			color.Red("'snakeplant' is only supported for https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/.")
@@ -50,7 +50,7 @@ func setup(cmd *cobra.Command, args []string) {
 	})
 	step(&counter, "Checking architecture of server", func() {
 		output, err := client.Exec("uname -p")
-		assertNoErr(err, "Could not get architecture.")
+		AssertNoErr(err, "Could not get architecture.")
 
 		if !strings.Contains(string(output), "x86_64") {
 			color.Red("'snakeplant' is only supported on x86_64.")
@@ -63,12 +63,12 @@ func setup(cmd *cobra.Command, args []string) {
 		safeIdempotentCopyFile(client, sourcesFilePath, fmt.Sprintf("%v.bak", sourcesFilePath))
 
 		out, err := client.Exec("mktemp")
-		assertNoErr(err, "Could not create temp file.")
+		AssertNoErr(err, "Could not create temp file.")
 
 		tempFile := strings.TrimSpace(string(out))
 
-		// We technically don't need to make a copy each time, but it allows us to start fresh every time we run setup,
-		// so if the file got changed and screwed up somehow, setup would fix it.
+		// We technically don't need to make a copy each time, but it allows us to start fresh every time we run Setup,
+		// so if the file got changed and screwed up somehow, Setup would fix it.
 		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*backports.*||' %v", tempFile))
@@ -105,7 +105,7 @@ func setup(cmd *cobra.Command, args []string) {
 		assertAnyErrWasDueToNonZeroExitCode(err, "Could not check if 'pack' already exists.")
 		if err == nil {
 			out, err := client.Exec("sha256sum /usr/local/bin/pack | awk '{print $1}'")
-			assertNoErr(err, "Could not check hash of already downloaded 'pack'")
+			AssertNoErr(err, "Could not check hash of already downloaded 'pack'")
 
 			if strings.TrimSpace(string(out)) == pack028BinSha {
 				printSubStepInformation(fmt.Sprintf("%v'pack' was previously installed.", LINE_PADDING))
@@ -121,14 +121,14 @@ func setup(cmd *cobra.Command, args []string) {
 		curlCommand(client, fmt.Sprintf("-m 20 -O -f -L --progress-bar https://github.com/buildpacks/pack/releases/download/v0.28.0/%v", fileName))
 
 		out, err := client.Exec(fmt.Sprintf("sha256sum %v | awk '{print $1}'", fileName))
-		assertNoErr(err, "Could not get hash of pack-cli tarball.")
+		AssertNoErr(err, "Could not get hash of pack-cli tarball.")
 
 		if strings.TrimSpace(string(out)) != pack028TarSha {
 			printMessageAndQuit("'pack-cli' tarball is corrupt, or someone is doing something sneaky.")
 		}
 
 		_, err = client.Exec(fmt.Sprintf("tar xvf %v", fileName))
-		assertNoErr(err, "Could not un-tar pack.")
+		AssertNoErr(err, "Could not un-tar pack.")
 		sshCommand(client, "mv pack /usr/local/bin/pack")
 		sshCommand(client, "chmod +x /usr/local/bin/pack")
 	})
@@ -149,7 +149,7 @@ func setup(cmd *cobra.Command, args []string) {
 	step(&counter, "Setting up automatic security updates", func() {
 
 		out, err := client.Exec("mktemp")
-		assertNoErr(err, "Could not create temp file.")
+		AssertNoErr(err, "Could not create temp file.")
 
 		tempFile := strings.TrimSpace(string(out))
 
@@ -162,7 +162,7 @@ func setup(cmd *cobra.Command, args []string) {
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot \"false\".*|Unattended-Upgrade::Automatic-Reboot \"true\";|' %v", tempFile))
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\".*|Unattended-Upgrade::Automatic-Reboot-WithUsers \"true\";|' %v", tempFile))
-		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-Time \"02:00\".*|Unattended-Upgrade::Automatic-Reboot-Time \"%v\";|' %v", *flags.setup.rebootTime, tempFile))
+		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Automatic-Reboot-Time \"02:00\".*|Unattended-Upgrade::Automatic-Reboot-Time \"%v\";|' %v", *Flags.Setup.RebootTime, tempFile))
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::SyslogEnable \"false\".*|Unattended-Upgrade::SyslogEnable \"true\";|' %v", tempFile))
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*Unattended-Upgrade::Verbose \"false\".*|Unattended-Upgrade::Verbose \"true\";|' %v", tempFile))
@@ -185,6 +185,6 @@ var firewallRulesCommand = `iptables-restore <<-'EOF'
 -A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 80,443,444 -j ACCEPT
 -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
 -A INPUT -i lo -j ACCEPT
--A INPUT -j REJECT --reject-with icmp-port-unreachable
+-A INPUT -j REJECT --reject-with icmp-Port-unreachable
 COMMIT
 EOF`
