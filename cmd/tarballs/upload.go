@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -65,8 +66,21 @@ func upload(command *cobra.Command, args []string) {
 }
 
 func createTarball() string {
-	tarballFile, err := os.CreateTemp("", "")
-	cmd.AssertNoErr(err, "unable to create tarball file")
+	wd, err := os.Getwd()
+	cmd.AssertNoErr(err, "Could not get current working directory to walk tarball tree.")
+
+	_, folderName := path.Split(wd)
+	shortShaTag, ok := getGitShortShaForDir(wd, err)
+
+	var tarballName string
+	if ok {
+		tarballName = fmt.Sprintf("%v-%v-%v.tar.gz", folderName, time.Now().Unix(), shortShaTag)
+	} else {
+		tarballName = fmt.Sprintf("%v-%v.tar.gz", folderName, time.Now().Unix())
+	}
+
+	tarballFile, err := os.Create(path.Join(os.TempDir(), tarballName))
+	cmd.AssertNoErr(err, "Unable to create tarball file.")
 
 	fmt.Printf("creating tarball of files to upload: %v...\n", tarballFile.Name())
 	defer tarballFile.Close()
@@ -76,9 +90,6 @@ func createTarball() string {
 
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
-
-	wd, err := os.Getwd()
-	cmd.AssertNoErr(err, "Could not get current working directory to walk tarball tree.")
 
 	filepath.Walk(wd, func(path string, info fs.FileInfo, err error) error {
 		if info.IsDir() {
@@ -115,4 +126,36 @@ func createTarball() string {
 	})
 
 	return tarballFile.Name()
+}
+
+func getGitShortShaForDir(wd string, err error) (string, bool) {
+	var out []byte
+
+	if _, err := exec.LookPath("git"); err != nil {
+		fmt.Printf("git not on path, skipping adding sha to tarball name\n")
+		return "", false
+	}
+
+	if _, err := os.Stat(path.Join(wd, ".git")); err != nil {
+		fmt.Printf(".git directory does not exist, skipping adding sha to tarball name\n")
+		return "", false
+	}
+
+	out, err = exec.Command("git", "diff", "--stat").CombinedOutput()
+	if err != nil {
+		fmt.Printf("couldnt get git diff: %v\n", err)
+		return "", false
+	}
+
+	if string(out) != "" {
+		fmt.Println("directory has uncommitted changes, skipping add sha to tarball name")
+		return "", false
+	}
+
+	out, err = exec.Command("git", "rev-parse", "--short", "HEAD").CombinedOutput()
+	if err != nil {
+		fmt.Printf("couldnt get git short SHA: %v\n", err)
+		return "", false
+	}
+	return string(out), true
 }
