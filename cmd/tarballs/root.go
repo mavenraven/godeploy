@@ -1,11 +1,9 @@
 package tarballs
 
 import (
-	"fmt"
 	"github.com/mavenraven/snakeplant/cmd"
-	"os"
-
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var rootTarballsCmd = &cobra.Command{
@@ -18,13 +16,8 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("tarballs called")
-	},
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			cmd.Help()
-			os.Exit(0)
-		}
+		cmd.Help()
+		os.Exit(0)
 	},
 }
 

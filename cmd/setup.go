@@ -15,17 +15,14 @@ var setupCmd = &cobra.Command{
 	Short: "Sets up your server to be ready for use.",
 	Long:  `'setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
 	Run:   setup,
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			cmd.Help()
-			os.Exit(0)
-		}
-	},
 }
 
 func init() {
 	RootCmd.AddCommand(setupCmd)
-	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "When your sever neeeds to be rebooted for security updates, this time will be used. An example is '2:00'.")
+	flags.root.port = setupCmd.Flags().IntP("port", "", 22, "The port number of the ssh daemon running on your server.")
+	flags.root.host = setupCmd.Flags().StringP("host", "", "", "The host name or IP address of your server.")
+	flags.root.key = setupCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
+	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "The time that your server will be configured to reboot to apply security patches. An example is '2:00'.")
 	setupCmd.MarkFlagRequired("rebootTime")
 }
 
