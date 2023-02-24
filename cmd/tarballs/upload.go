@@ -25,9 +25,9 @@ var uploadCmd = &cobra.Command{
 
 func init() {
 	rootTarballsCmd.AddCommand(uploadCmd)
-	cmd.Flags.Root.Port = uploadCmd.Flags().IntP("port", "", 22, "The port number of the ssh daemon running on your server.")
-	cmd.Flags.Root.Host = uploadCmd.Flags().StringP("host", "", "", "The host name or IP address of your server.")
-	cmd.Flags.Root.Key = uploadCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
+	cmd.Flags.Upload.Port = uploadCmd.Flags().IntP("port", "", 22, "The port number of the ssh daemon running on your server.")
+	cmd.Flags.Upload.Host = uploadCmd.Flags().StringP("host", "", "", "The host name or IP address of your server.")
+	cmd.Flags.Upload.Key = uploadCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
 	uploadCmd.MarkFlagRequired("host")
 }
 
@@ -35,9 +35,9 @@ func upload(command *cobra.Command, args []string) {
 	tarballName := createTarball()
 	fmt.Println(tarballName)
 
-	socket := fmt.Sprintf("%v:%v", *cmd.Flags.Root.Host, *cmd.Flags.Root.Port)
+	socket := fmt.Sprintf("%v:%v", *cmd.Flags.Upload.Host, *cmd.Flags.Upload.Port)
 
-	client, err := simplessh.ConnectWithKeyFileTimeout(socket, "Root", *cmd.Flags.Root.Key, 5*time.Second)
+	client, err := simplessh.ConnectWithKeyFileTimeout(socket, "root", *cmd.Flags.Upload.Key, 5*time.Second)
 	cmd.AssertNoErr(err, "Unable to establish a connection.")
 
 	remoteTempFileNameBytes, err := client.Exec("mktemp")
@@ -49,10 +49,10 @@ func upload(command *cobra.Command, args []string) {
 
 	//client.Upload is unusably slow, just shell out instead for now.
 	scpArgs := make([]string, 0)
-	if *cmd.Flags.Root.Key != "" {
-		args = append(args, "-i", *cmd.Flags.Root.Key)
+	if *cmd.Flags.Upload.Key != "" {
+		args = append(args, "-i", *cmd.Flags.Upload.Key)
 	}
-	scpArgs = append(args, tarballName, fmt.Sprintf("%v@%v:%v", "root", *cmd.Flags.Root.Host, remoteTempFileName))
+	scpArgs = append(args, tarballName, fmt.Sprintf("%v@%v:%v", "root", *cmd.Flags.Upload.Host, remoteTempFileName))
 
 	scpCmd := exec.Command("scp", scpArgs...)
 	output, err := scpCmd.CombinedOutput()

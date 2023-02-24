@@ -11,11 +11,17 @@ import (
 
 var Flags = struct {
 	Root struct {
-		Port *int
-		Host *string
-		Key  *string
 	}
 	Setup struct {
+		Port       *int
+		Host       *string
+		Key        *string
+		RebootTime *string
+	}
+	Upload struct {
+		Port       *int
+		Host       *string
+		Key        *string
 		RebootTime *string
 	}
 }{}

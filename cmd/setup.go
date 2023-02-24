@@ -19,23 +19,23 @@ var setupCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(setupCmd)
-	Flags.Root.Port = setupCmd.Flags().IntP("port", "", 22, "The Port number of the ssh daemon running on your server.")
-	Flags.Root.Host = setupCmd.Flags().StringP("host", "", "", "The Host name or IP address of your server.")
-	Flags.Root.Key = setupCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
+	Flags.Setup.Port = setupCmd.Flags().IntP("port", "", 22, "The Port number of the ssh daemon running on your server.")
+	Flags.Setup.Host = setupCmd.Flags().StringP("host", "", "", "The Host name or IP address of your server.")
+	Flags.Setup.Key = setupCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
 	Flags.Setup.RebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "The time that your server will be configured to reboot to apply security patches. An example is '2:00'.")
 	setupCmd.MarkFlagRequired("host")
 	setupCmd.MarkFlagRequired("rebootTime")
 }
 
 func setup(cmd *cobra.Command, args []string) {
-	socket := fmt.Sprintf("%v:%v", *Flags.Root.Host, *Flags.Root.Port)
+	socket := fmt.Sprintf("%v:%v", *Flags.Setup.Host, *Flags.Setup.Port)
 
 	counter := 1
 	var client *simplessh.Client
 	var err error
 
 	step(&counter, "Connecting as root", func() {
-		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "Root", *Flags.Root.Key, 5*time.Second)
+		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "root", *Flags.Setup.Key, 5*time.Second)
 		AssertNoErr(err, "Unable to establish a connection.")
 	})
 	defer client.Close()
@@ -186,6 +186,6 @@ var firewallRulesCommand = `iptables-restore <<-'EOF'
 -A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 80,443,444 -j ACCEPT
 -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
 -A INPUT -i lo -j ACCEPT
--A INPUT -j REJECT --reject-with icmp-Port-unreachable
+-A INPUT -j REJECT --reject-with icmp-port-unreachable
 COMMIT
 EOF`
