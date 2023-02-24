@@ -13,7 +13,7 @@ import (
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Sets up your server to be ready for use.",
-	Long:  `'Setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
+	Long:  `'setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
 	Run:   setup,
 }
 
@@ -68,8 +68,8 @@ func setup(cmd *cobra.Command, args []string) {
 
 		tempFile := strings.TrimSpace(string(out))
 
-		// We technically don't need to make a copy each time, but it allows us to start fresh every time we run Setup,
-		// so if the file got changed and screwed up somehow, Setup would fix it.
+		// We technically don't need to make a copy each time, but it allows us to start fresh every time we run setup,
+		// so if the file got changed and screwed up somehow, setup would fix it.
 		sshCommand(client, fmt.Sprintf("cp %v %v", sourcesFilePath, tempFile))
 
 		sshCommand(client, fmt.Sprintf("sed -i 's|.*backports.*||' %v", tempFile))
