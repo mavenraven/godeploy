@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{
+var RootCmd = &cobra.Command{
 	Use:   "snakeplant",
 	Short: "'snakeplant' deploys to and maintains your server",
 	Long: `snakeplant 
@@ -20,16 +20,16 @@ The goal is to provide you with the education that you need to fix stuff when it
 }
 
 func Execute() {
-	err := rootCmd.Execute()
+	err := RootCmd.Execute()
 	if err != nil {
-		rootCmd.Usage()
+		RootCmd.Usage()
 		os.Exit(1)
 	}
 }
 
 func init() {
-	flags.root.port = rootCmd.PersistentFlags().IntP("port", "", 22, "port number of your server")
-	flags.root.host = rootCmd.PersistentFlags().StringP("host", "", "", "host name or IP address of your server")
-	flags.root.key = rootCmd.PersistentFlags().StringP("key", "", "", "location of id_rsa. Defaults to $HOME/.ssh/id_rsa")
-	rootCmd.MarkPersistentFlagRequired("host")
+	flags.root.port = RootCmd.PersistentFlags().IntP("port", "", 22, "Port number of the ssh daemon running on your server.")
+	flags.root.host = RootCmd.PersistentFlags().StringP("host", "", "", "Host name or IP address of your server.")
+	flags.root.key = RootCmd.PersistentFlags().StringP("key", "", "", "location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
+	RootCmd.MarkPersistentFlagRequired("host")
 }

@@ -10,17 +10,22 @@ import (
 	"time"
 )
 
-// setupCmd represents the setup command
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Sets up all the programs needed to deploy on your server.",
+	Short: "Sets up your server to be ready for use.",
 	Long:  `'setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
 	Run:   setup,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			cmd.Help()
+			os.Exit(0)
+		}
+	},
 }
 
 func init() {
-	rootCmd.AddCommand(setupCmd)
-	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "Time to reboot your server for security updates that require a reboot. An example value is 02:00 for 2 AM. Remember that your server might be in a different timezone than you!")
+	RootCmd.AddCommand(setupCmd)
+	flags.setup.rebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "When your sever neeeds to be rebooted for security updates, this time will be used. An example is '2:00'.")
 	setupCmd.MarkFlagRequired("rebootTime")
 }
 
