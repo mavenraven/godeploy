@@ -3,6 +3,7 @@ package tarballs
 import (
 	"fmt"
 	"github.com/mavenraven/snakeplant/cmd"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -19,18 +20,14 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("tarballs called")
 	},
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			cmd.Help()
+			os.Exit(0)
+		}
+	},
 }
 
 func init() {
 	cmd.RootCmd.AddCommand(rootTarballsCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// rootTarballsCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// rootTarballsCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
