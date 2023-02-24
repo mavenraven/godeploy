@@ -157,5 +157,5 @@ func getGitShortShaForDir(wd string, err error) (string, bool) {
 		fmt.Printf("couldnt get git short SHA: %v\n", err)
 		return "", false
 	}
-	return string(out), true
+	return strings.TrimSpace(string(out)), true
 }
