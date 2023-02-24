@@ -11,7 +11,7 @@ import (
 )
 
 var setupCmd = &cobra.Command{
-	Use:   "Setup",
+	Use:   "setup",
 	Short: "Sets up your server to be ready for use.",
 	Long:  `'Setup' is designed to be idempotent. This means that it's always safe to run it again, even if it errors out.'`,
 	Run:   setup,
@@ -19,11 +19,12 @@ var setupCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(setupCmd)
-	Flags.Root.Port = setupCmd.Flags().IntP("Port", "", 22, "The Port number of the ssh daemon running on your server.")
-	Flags.Root.Host = setupCmd.Flags().StringP("Host", "", "", "The Host name or IP address of your server.")
-	Flags.Root.Key = setupCmd.Flags().StringP("Key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
-	Flags.Setup.RebootTime = setupCmd.Flags().StringP("RebootTime", "", "", "The time that your server will be configured to reboot to apply security patches. An example is '2:00'.")
-	setupCmd.MarkFlagRequired("RebootTime")
+	Flags.Root.Port = setupCmd.Flags().IntP("port", "", 22, "The Port number of the ssh daemon running on your server.")
+	Flags.Root.Host = setupCmd.Flags().StringP("host", "", "", "The Host name or IP address of your server.")
+	Flags.Root.Key = setupCmd.Flags().StringP("key", "", "", "The location of your 'id_rsa' file. Defaults to $HOME/.ssh/id_rsa.")
+	Flags.Setup.RebootTime = setupCmd.Flags().StringP("rebootTime", "", "", "The time that your server will be configured to reboot to apply security patches. An example is '2:00'.")
+	setupCmd.MarkFlagRequired("host")
+	setupCmd.MarkFlagRequired("rebootTime")
 }
 
 func setup(cmd *cobra.Command, args []string) {
@@ -33,7 +34,7 @@ func setup(cmd *cobra.Command, args []string) {
 	var client *simplessh.Client
 	var err error
 
-	step(&counter, "Connecting as Root", func() {
+	step(&counter, "Connecting as root", func() {
 		client, err = simplessh.ConnectWithKeyFileTimeout(socket, "Root", *Flags.Root.Key, 5*time.Second)
 		AssertNoErr(err, "Unable to establish a connection.")
 	})

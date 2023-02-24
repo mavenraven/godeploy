@@ -5,12 +5,15 @@ import (
 	"compress/gzip"
 	"fmt"
 	"github.com/mavenraven/snakeplant/cmd"
+	"github.com/sfreiberg/simplessh"
 	"github.com/spf13/cobra"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var uploadCmd = &cobra.Command{
@@ -29,7 +32,36 @@ func init() {
 }
 
 func upload(command *cobra.Command, args []string) {
-	fmt.Println(createTarball())
+	tarballName := createTarball()
+	fmt.Println(tarballName)
+
+	socket := fmt.Sprintf("%v:%v", *cmd.Flags.Root.Host, *cmd.Flags.Root.Port)
+
+	client, err := simplessh.ConnectWithKeyFileTimeout(socket, "Root", *cmd.Flags.Root.Key, 5*time.Second)
+	cmd.AssertNoErr(err, "Unable to establish a connection.")
+
+	remoteTempFileNameBytes, err := client.Exec("mktemp")
+	cmd.AssertNoErr(err, "Unable to create temp file on server.")
+
+	remoteTempFileName := strings.TrimSpace(string(remoteTempFileNameBytes))
+
+	fmt.Printf("uploading tarball to %v at %v...\n", remoteTempFileName, time.Now().Format("15:04:05"))
+
+	//client.Upload is unusably slow, just shell out instead for now.
+	scpArgs := make([]string, 0)
+	if *cmd.Flags.Root.Key != "" {
+		args = append(args, "-i", *cmd.Flags.Root.Key)
+	}
+	scpArgs = append(args, tarballName, fmt.Sprintf("%v@%v:%v", "root", *cmd.Flags.Root.Host, remoteTempFileName))
+
+	scpCmd := exec.Command("scp", scpArgs...)
+	output, err := scpCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%v: %v\n", string(output), err)
+		os.Exit(1)
+	}
+	fmt.Printf("tarball uploaded at %v\n", time.Now().Format("15:04:05"))
+
 }
 
 func createTarball() string {
