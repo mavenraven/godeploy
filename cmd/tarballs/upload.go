@@ -36,24 +36,27 @@ func upload(command *cobra.Command, args []string) {
 	tarballName := createTarball()
 	fmt.Println(tarballName)
 
+	_, tarballFileName := path.Split(tarballName)
+
 	socket := fmt.Sprintf("%v:%v", *cmd.Flags.Upload.Host, *cmd.Flags.Upload.Port)
 
 	client, err := simplessh.ConnectWithKeyFileTimeout(socket, "root", *cmd.Flags.Upload.Key, 5*time.Second)
 	cmd.AssertNoErr(err, "Unable to establish a connection.")
 
-	remoteTempFileNameBytes, err := client.Exec("mktemp")
-	cmd.AssertNoErr(err, "Unable to create temp file on server.")
+	_, err = client.Exec("mkdir -p /var/snakeplant/tarballs")
+	cmd.AssertNoErr(err, "Unable to create /var/snakeplant/tarballs.")
 
-	remoteTempFileName := strings.TrimSpace(string(remoteTempFileNameBytes))
+	// don't want to use filepath.Join because it's the remote serve path
+	remoteFileName := fmt.Sprintf("/var/snakeplant/tarballs/%v", tarballFileName)
 
-	fmt.Printf("uploading tarball to %v at %v...\n", remoteTempFileName, time.Now().Format("15:04:05"))
+	fmt.Printf("uploading tarball to %v at %v...\n", remoteFileName, time.Now().Format("15:04:05"))
 
 	//client.Upload is unusably slow, just shell out instead for now.
 	scpArgs := make([]string, 0)
 	if *cmd.Flags.Upload.Key != "" {
 		args = append(args, "-i", *cmd.Flags.Upload.Key)
 	}
-	scpArgs = append(args, tarballName, fmt.Sprintf("%v@%v:%v", "root", *cmd.Flags.Upload.Host, remoteTempFileName))
+	scpArgs = append(args, tarballName, fmt.Sprintf("%v@%v:%v", "root", *cmd.Flags.Upload.Host, remoteFileName))
 
 	scpCmd := exec.Command("scp", scpArgs...)
 	output, err := scpCmd.CombinedOutput()
@@ -79,7 +82,7 @@ func createTarball() string {
 		tarballName = fmt.Sprintf("%v-%v.tar.gz", folderName, time.Now().Unix())
 	}
 
-	tarballFile, err := os.Create(path.Join(os.TempDir(), tarballName))
+	tarballFile, err := os.Create(filepath.Join(os.TempDir(), tarballName))
 	cmd.AssertNoErr(err, "Unable to create tarball file.")
 
 	fmt.Printf("creating tarball of files to upload: %v...\n", tarballFile.Name())
@@ -136,7 +139,7 @@ func getGitShortShaForDir(wd string, err error) (string, bool) {
 		return "", false
 	}
 
-	if _, err := os.Stat(path.Join(wd, ".git")); err != nil {
+	if _, err := os.Stat(filepath.Join(wd, ".git")); err != nil {
 		fmt.Printf(".git directory does not exist, skipping adding sha to tarball name\n")
 		return "", false
 	}
